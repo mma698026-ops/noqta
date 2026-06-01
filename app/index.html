@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>كشف النقوط</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1a1208">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="نقطة">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+
+:root {
+  --bg:       #f5f0e8;
+  --bg2:      #ede6d6;
+  --card:     #ffffff;
+  --border:   #e0d8c8;
+  --shadow:   0 2px 16px rgba(0,0,0,0.08);
+  --green:    #1a7a4a;
+  --green-bg: #e8f5ee;
+  --green-mid:#2ea86a;
+  --red:      #b83232;
+  --red-bg:   #fdeaea;
+  --red-mid:  #e04444;
+  --gold:     #c8860a;
+  --gold-bg:  #fff8e8;
+  --gold-mid: #e8a020;
+  --text:     #1a1208;
+  --text2:    #5a4e38;
+  --text3:    #9a8e7a;
+  --radius:   16px;
+  --radius-sm:10px;
+  --header-bg:#1a1208;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; font-family: 'Cairo', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+
+/* ── SYNC STATUS ── */
+.sync-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 9000;
+  height: 3px; background: var(--gold-mid);
+  transform: scaleX(0); transform-origin: right;
+  transition: transform 0.3s ease; opacity: 0;
+}
+.sync-bar.syncing { opacity: 1; animation: syncAnim 1s infinite; }
+@keyframes syncAnim { 0%{transform:scaleX(0)} 50%{transform:scaleX(1)} 100%{transform:scaleX(0)} }
+.sync-badge {
+  position: fixed; top: 12px; left: 12px; z-index: 9001;
+  background: var(--gold-bg); border: 1px solid var(--gold-mid);
+  color: var(--gold); font-size: 11px; font-weight: 800;
+  padding: 4px 10px; border-radius: 20px;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.sync-badge.show { opacity: 1; }
+
+/* ── SUBSCRIPTION EXPIRED OVERLAY ── */
+.sub-expired-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+  z-index: 9500; display: none; align-items: center; justify-content: center; padding: 24px;
+}
+.sub-expired-overlay.show { display: flex; }
+.sub-expired-box {
+  background: #fff; border-radius: 24px; padding: 40px 28px;
+  width: 100%; max-width: 340px; text-align: center;
+}
+.sub-expired-icon { font-size: 64px; margin-bottom: 12px; }
+.sub-expired-title { font-size: 22px; font-weight: 900; color: #b83232; margin-bottom: 8px; }
+.sub-expired-msg { font-size: 14px; color: #5a4e38; line-height: 1.7; }
+
+/* ── LOGIN SCREEN ── */
+.login-overlay {
+  position: fixed; inset: 0; background: var(--header-bg);
+  z-index: 9999; display: flex; align-items: center; justify-content: center;
+  flex-direction: column; padding: 24px; transition: opacity 0.4s;
+}
+.login-overlay.hidden { opacity: 0; pointer-events: none; }
+.login-box {
+  background: var(--card); border-radius: 24px; padding: 32px 28px;
+  width: 100%; max-width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  text-align: center;
+}
+.login-icon  { font-size: 52px; margin-bottom: 12px; }
+.login-title { font-size: 22px; font-weight: 900; color: var(--text); margin-bottom: 4px; }
+.login-sub   { font-size: 13px; color: var(--text3); margin-bottom: 24px; }
+.server-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--gold-bg); border: 1px solid rgba(232,160,32,0.3);
+  border-radius: 20px; padding: 4px 12px; font-size: 11px; font-weight: 800; color: var(--gold);
+  margin-bottom: 20px;
+}
+.login-input {
+  width: 100%; background: var(--bg2); border: 2px solid var(--border);
+  border-radius: 12px; padding: 13px 16px; font-family: 'Cairo', sans-serif;
+  font-size: 15px; color: var(--text); outline: none; margin-bottom: 12px;
+  transition: border-color 0.2s; text-align: right; letter-spacing: 0;
+}
+.login-input:focus { border-color: var(--gold-mid); background: #fff; }
+.login-btn {
+  width: 100%; padding: 14px; border: none; border-radius: 12px;
+  background: var(--text); color: #fff; font-family: 'Cairo', sans-serif;
+  font-size: 16px; font-weight: 900; cursor: pointer; transition: all 0.2s; margin-top: 4px;
+}
+.login-btn:active { transform: scale(0.98); }
+.login-btn:disabled { opacity: 0.6; }
+.login-error { color: var(--red); font-size: 13px; font-weight: 700; margin-top: 10px; min-height: 18px; }
+
+/* ── TOP HEADER ── */
+.app-header { background: var(--header-bg); padding: 20px 18px 16px; position: sticky; top: 0; z-index: 50; }
+.app-header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.app-title { font-size: 20px; font-weight: 900; color: #fff; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; flex: 1; }
+.app-title-icon { width: 34px; height: 34px; background: var(--gold-mid); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.app-title-text { display: flex; flex-direction: column; gap: 1px; }
+.app-title-main  { font-size: 18px; line-height: 1.2; }
+.app-title-owner { font-size: 12px; color: rgba(255,255,255,0.65); font-weight: 600; }
+.header-actions { display: flex; gap: 8px; }
+.header-icon-btn {
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 10px; color: #fff; font-size: 18px; width: 38px; height: 38px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s;
+}
+.header-icon-btn:active { background: rgba(255,255,255,0.25); }
+.balance-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.balance-card { border-radius: 14px; padding: 14px 16px; }
+.balance-card.green { background: var(--green); }
+.balance-card.red   { background: var(--red-mid); }
+.balance-card-label  { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; opacity: 0.75; color: #fff; margin-bottom: 4px; }
+.balance-card-amount { font-size: 24px; font-weight: 900; color: #fff; direction: ltr; text-align: right; }
+.balance-card-count  { font-size: 11px; color: rgba(255,255,255,0.65); margin-top: 4px; }
+
+/* ── SUBSCRIPTION ALERT ── */
+.sub-alert {
+  background: var(--gold-bg); border-bottom: 2px solid var(--gold-mid);
+  padding: 10px 16px; font-size: 12px; font-weight: 800; color: var(--gold);
+  text-align: center; display: none;
+}
+.sub-alert.show { display: block; }
+
+/* ── TABS ── */
+.tabs-bar { display: flex; background: var(--bg2); border-bottom: 1px solid var(--border); position: sticky; top: 165px; z-index: 40; }
+.tab-btn { flex: 1; padding: 13px 8px; border: none; background: transparent; font-family: 'Cairo', sans-serif; font-size: 13px; font-weight: 700; color: var(--text3); cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 4px; }
+.tab-btn.active-green { color: var(--green);    border-bottom-color: var(--green);    background: #fff; }
+.tab-btn.active-red   { color: var(--red);      border-bottom-color: var(--red-mid);  background: #fff; }
+.tab-btn.active-gold  { color: var(--gold);     border-bottom-color: var(--gold-mid); background: #fff; }
+
+/* ── CONTENT ── */
+.page { display: none; padding: 16px; min-height: calc(100vh - 220px); padding-bottom: 100px; }
+.page.active { display: block; }
+.section-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.section-hd-title { font-size: 13px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ── PERSON CARD ── */
+.person-card { background: var(--card); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--border); animation: slideUp 0.25s ease both; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.person-card-top { display: flex; align-items: center; padding: 14px 16px; gap: 12px; cursor: pointer; transition: background 0.15s; }
+.person-card-top:active { background: var(--bg); }
+.person-avatar { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 900; color: #fff; flex-shrink: 0; }
+.avatar-green { background: linear-gradient(135deg, var(--green-mid), var(--green)); }
+.avatar-red   { background: linear-gradient(135deg, var(--red-mid),   var(--red));   }
+.person-info { flex: 1; min-width: 0; }
+.person-name    { font-size: 15px; font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.person-country { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.person-amount  { text-align: left; flex-shrink: 0; }
+.person-amount-num { font-size: 18px; font-weight: 900; direction: ltr; }
+.amount-green { color: var(--green); }
+.amount-red   { color: var(--red-mid); }
+.person-amount-label { font-size: 10px; color: var(--text3); text-align: center; margin-top: 1px; }
+.expand-icon { font-size: 12px; color: var(--text3); margin-right: -4px; transition: transform 0.2s; }
+.expand-icon.open { transform: rotate(180deg); }
+
+/* ── EXPANDED DETAIL ── */
+.person-detail { display: none; border-top: 1px solid var(--border); padding: 0 16px 14px; background: var(--bg); }
+.person-detail.open { display: block; }
+.history-list { margin-bottom: 12px; }
+.history-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px dashed var(--border); }
+.history-item:last-child { border-bottom: none; }
+.history-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.dot-green { background: var(--green-mid); }
+.dot-red   { background: var(--red-mid); }
+.history-info { flex: 1; min-width: 0; }
+.history-occasion { font-size: 13px; font-weight: 700; color: var(--text); }
+.history-date     { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.history-amount   { font-size: 15px; font-weight: 900; direction: ltr; }
+.no-history { text-align: center; padding: 14px 0 6px; color: var(--text3); font-size: 13px; }
+.add-entry-form { background: var(--card); border-radius: 12px; padding: 14px; border: 1px solid var(--border); }
+.add-entry-title { font-size: 13px; font-weight: 800; color: var(--text2); margin-bottom: 10px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.form-input { background: var(--bg2); border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 12px; font-family: 'Cairo', sans-serif; font-size: 14px; color: var(--text); width: 100%; outline: none; transition: border-color 0.2s; -webkit-appearance: none; }
+.form-input:focus { border-color: var(--gold-mid); background: #fff; }
+.form-input::placeholder { color: var(--text3); }
+.form-full { grid-column: 1 / -1; }
+.add-btn { width: 100%; padding: 12px; border: none; border-radius: 10px; font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; transition: all 0.2s; margin-top: 4px; }
+.add-btn:active { transform: scale(0.98); }
+.add-btn-green { background: var(--green); color: #fff; box-shadow: 0 4px 12px rgba(26,122,74,0.3); }
+.add-btn-red   { background: var(--red-mid); color: #fff; box-shadow: 0 4px 12px rgba(224,68,68,0.3); }
+.card-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.card-action-btn { flex: 1; padding: 9px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--card); font-family: 'Cairo', sans-serif; font-size: 12px; font-weight: 700; color: var(--text2); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.2s; white-space: nowrap; }
+.card-action-btn.del   { color: var(--red); border-color: rgba(224,68,68,0.3); }
+.card-action-btn.del:active { background: var(--red-bg); }
+.card-action-btn.print { color: var(--gold); border-color: rgba(200,134,10,0.3); }
+
+/* ── FAB ── */
+.fab { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--header-bg); color: #fff; border: none; border-radius: 50px; padding: 15px 28px; font-family: 'Cairo', sans-serif; font-size: 15px; font-weight: 800; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,0.25); display: flex; align-items: center; gap: 8px; z-index: 80; transition: all 0.2s; }
+.fab:active { transform: translateX(-50%) scale(0.96); }
+
+/* ── MODAL ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); backdrop-filter: blur(3px); z-index: 200; display: flex; align-items: flex-end; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal-sheet { background: var(--card); border-radius: 22px 22px 0 0; width: 100%; max-width: 500px; padding: 0 0 env(safe-area-inset-bottom,0); transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); max-height: 92vh; overflow-y: auto; }
+.modal-overlay.open .modal-sheet { transform: translateY(0); }
+.modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 12px auto 0; }
+.modal-header { padding: 16px 20px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.modal-title  { font-size: 17px; font-weight: 900; color: var(--text); }
+.modal-close  { width: 32px; height: 32px; border-radius: 50%; border: none; background: var(--bg2); color: var(--text2); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.modal-body   { padding: 20px; }
+.modal-form-group { margin-bottom: 14px; }
+.modal-label  { font-size: 12px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: block; }
+.type-toggle  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.type-btn { padding: 12px 8px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg2); font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; text-align: center; transition: all 0.2s; color: var(--text3); }
+.type-btn.active-green { border-color: var(--green); background: var(--green-bg); color: var(--green); }
+.type-btn.active-red   { border-color: var(--red-mid); background: var(--red-bg); color: var(--red-mid); }
+.type-btn.active-gold  { border-color: var(--gold-mid); background: var(--gold-bg); color: var(--gold); }
+.modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 20px 24px; }
+.modal-save-btn, .modal-cancel-btn { padding: 14px; border-radius: 12px; border: none; font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; transition: all 0.2s; }
+.modal-save-btn   { background: var(--header-bg); color: #fff; }
+.modal-cancel-btn { background: var(--bg2); color: var(--text2); }
+
+/* ── EMPTY STATE ── */
+.empty-state { text-align: center; padding: 48px 24px; color: var(--text3); }
+.empty-state-icon  { font-size: 52px; margin-bottom: 12px; opacity: 0.5; }
+.empty-state-title { font-size: 17px; font-weight: 800; color: var(--text2); margin-bottom: 6px; }
+.empty-state-sub   { font-size: 14px; line-height: 1.6; }
+
+/* ── IMPORT SECTION ── */
+.import-section { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: 12px; }
+.import-section-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.import-body { padding: 16px; }
+.upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 24px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg2); position: relative; }
+.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.upload-zone-icon  { font-size: 32px; margin-bottom: 8px; }
+.upload-zone-title { font-size: 14px; font-weight: 700; color: var(--text2); margin-bottom: 4px; }
+.upload-zone-sub   { font-size: 12px; color: var(--text3); }
+.upload-success    { display: none; align-items: center; gap: 8px; margin-top: 10px; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; background: var(--green-bg); color: var(--green); border: 1px solid rgba(26,122,74,0.2); }
+.confirm-import-btn { width: 100%; margin-top: 12px; padding: 13px; border-radius: 12px; border: none; background: var(--header-bg); color: #fff; font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; display: none; }
+
+/* ── EXPORT BUTTONS ── */
+.export-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.export-btn { padding: 13px; border-radius: 12px; border: 2px solid; font-family: 'Cairo', sans-serif; font-size: 13px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; background: var(--card); }
+.export-btn:active { transform: scale(0.97); }
+.export-btn.green { border-color: var(--green);      color: var(--green); }
+.export-btn.red   { border-color: var(--red-mid);    color: var(--red-mid); }
+.export-btn.full  { grid-column: 1/-1; border-color: var(--header-bg); color: var(--header-bg); }
+.export-btn.gold  { border-color: var(--gold-mid);   color: var(--gold); }
+
+/* ── SETTINGS ── */
+.settings-section { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: 16px; }
+.settings-section-title { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 800; color: var(--text2); display: flex; align-items: center; gap: 8px; }
+.settings-row { padding: 14px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); }
+.settings-row:last-child { border-bottom: none; }
+.settings-row-icon { font-size: 20px; width: 36px; text-align: center; }
+.settings-row-info { flex: 1; }
+.settings-row-label { font-size: 14px; font-weight: 700; color: var(--text); }
+.settings-row-sub   { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.settings-row-action { flex-shrink: 0; }
+.settings-btn { padding: 8px 16px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--bg2); font-family: 'Cairo', sans-serif; font-size: 13px; font-weight: 700; color: var(--text2); cursor: pointer; }
+.settings-btn.danger { border-color: rgba(224,68,68,0.4); color: var(--red); background: var(--red-bg); }
+.color-swatch { width: 32px; height: 32px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; display: inline-block; }
+.color-swatch.active { border-color: var(--text); transform: scale(1.15); }
+
+/* ── TOAST ── */
+.toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--header-bg); color: #fff; border-radius: 50px; padding: 12px 22px; font-size: 13px; font-weight: 700; z-index: 999; white-space: nowrap; opacity: 0; transition: all 0.25s; box-shadow: 0 8px 24px rgba(0,0,0,0.2); pointer-events: none; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── SEARCH ── */
+.search-wrap { position: relative; margin-bottom: 14px; }
+.search-input { width: 100%; background: var(--card); border: 1.5px solid var(--border); border-radius: 12px; padding: 11px 40px 11px 14px; font-family: 'Cairo', sans-serif; font-size: 14px; color: var(--text); outline: none; -webkit-appearance: none; }
+.search-input::placeholder { color: var(--text3); }
+.search-input:focus { border-color: var(--gold-mid); }
+.search-icon-wrap { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; }
+
+/* ── PWD MODAL ── */
+.pwd-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.pwd-modal.open { opacity: 1; pointer-events: all; }
+.pwd-box { background: var(--card); border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 320px; text-align: center; }
+.pwd-icon  { font-size: 40px; margin-bottom: 10px; }
+.pwd-title { font-size: 18px; font-weight: 900; margin-bottom: 6px; }
+.pwd-sub   { font-size: 13px; color: var(--text3); margin-bottom: 18px; }
+.pwd-input { width: 100%; background: var(--bg2); border: 2px solid var(--border); border-radius: 12px; padding: 12px 16px; font-family: 'Cairo', sans-serif; font-size: 16px; color: var(--text); outline: none; text-align: center; margin-bottom: 4px; }
+.pwd-input:focus { border-color: var(--gold-mid); }
+.pwd-error { color: var(--red); font-size: 12px; font-weight: 700; min-height: 18px; margin-bottom: 12px; }
+.pwd-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pwd-btn { padding: 12px; border-radius: 10px; border: none; font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; }
+.pwd-btn.confirm { background: var(--header-bg); color: #fff; }
+.pwd-btn.cancel  { background: var(--bg2); color: var(--text2); }
+
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area { position: fixed; inset: 0; background: #fff; padding: 20px; font-family: 'Cairo', sans-serif; direction: rtl; }
+}
+.print-area { display: none; }
+::-webkit-scrollbar { width: 0; }
+</style>
+</head>
+<body>
+
+<!-- SYNC BAR -->
+<div class="sync-bar" id="sync-bar"></div>
+<div class="sync-badge" id="sync-badge">🔄 جاري الحفظ...</div>
+
+<!-- SUBSCRIPTION EXPIRED -->
+<div class="sub-expired-overlay" id="sub-expired-overlay">
+  <div class="sub-expired-box">
+    <div class="sub-expired-icon">⏳</div>
+    <div class="sub-expired-title">انتهى الاشتراك</div>
+    <div class="sub-expired-msg" id="sub-expired-msg">اشتراكك انتهى. تواصل مع الأدمن لتجديد اشتراكك والاستمرار في استخدام التطبيق.</div>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-box">
+    <div class="login-icon">🎊</div>
+    <div class="login-title">كشف النقوط</div>
+    <div class="server-badge">☁️ متصل بالسيرفر</div>
+    <div class="login-sub">أدخل بياناتك للدخول</div>
+    <input class="login-input" id="login-user" type="text"     placeholder="اليوزر" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+    <input class="login-input" id="login-pass" type="password" placeholder="الباسورد" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" id="login-btn" onclick="doLogin()">🔓 دخول</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="app-header">
+  <div class="app-header-top">
+    <div class="app-title">
+      <div class="app-title-icon">🎊</div>
+      <div class="app-title-text">
+        <div class="app-title-main">كشف النقوط</div>
+        <div class="app-title-owner" id="header-owner-name"></div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="header-icon-btn" onclick="switchPage('settings',document.getElementById('tab-settings-btn'))">⚙️</button>
+      <button class="header-icon-btn" onclick="switchPage('import',document.getElementById('tab-import-btn'))">📥</button>
+    </div>
+  </div>
+  <div class="balance-row">
+    <div class="balance-card green">
+      <div class="balance-card-label">ليّا على الناس</div>
+      <div class="balance-card-amount" id="total-lee">0 ج</div>
+      <div class="balance-card-count"  id="count-lee">0 شخص</div>
+    </div>
+    <div class="balance-card red">
+      <div class="balance-card-label">عليّا للناس</div>
+      <div class="balance-card-amount" id="total-alaya">0 ج</div>
+      <div class="balance-card-count"  id="count-alaya">0 شخص</div>
+    </div>
+  </div>
+</div>
+<div class="sub-alert" id="sub-alert"></div>
+
+<!-- TABS -->
+<div class="tabs-bar">
+  <button class="tab-btn active-green" id="tab-lee-btn"      onclick="switchPage('lee',this)">💚 ليّا <span id="badge-lee"   style="background:var(--green);color:#fff;border-radius:20px;padding:1px 7px;font-size:11px">0</span></button>
+  <button class="tab-btn"              id="tab-alaya-btn"    onclick="switchPage('alaya',this)">❤️ عليّا <span id="badge-alaya" style="background:var(--red-mid);color:#fff;border-radius:20px;padding:1px 7px;font-size:11px">0</span></button>
+  <button class="tab-btn"              id="tab-import-btn"   onclick="switchPage('import',this)">📥 استيراد</button>
+  <button class="tab-btn"              id="tab-settings-btn" onclick="switchPage('settings',this)">⚙️</button>
+</div>
+
+<!-- PAGE: LEE -->
+<div class="page active" id="page-lee">
+  <div class="search-wrap">
+    <input class="search-input" placeholder="ابحث بالاسم أو البلد..." oninput="searchPeople('lee',this.value)">
+    <span class="search-icon-wrap">🔍</span>
+  </div>
+  <div id="list-lee"></div>
+</div>
+
+<!-- PAGE: ALAYA -->
+<div class="page" id="page-alaya">
+  <div class="search-wrap">
+    <input class="search-input" placeholder="ابحث بالاسم أو البلد..." oninput="searchPeople('alaya',this.value)">
+    <span class="search-icon-wrap">🔍</span>
+  </div>
+  <div id="list-alaya"></div>
+</div>
+
+<!-- PAGE: IMPORT -->
+<div class="page" id="page-import">
+
+  <div class="import-section">
+    <div class="import-section-header">📤 تصدير Excel</div>
+    <div class="import-body">
+      <div class="export-row">
+        <button class="export-btn green" onclick="exportExcel('lee')">💚 تصدير ليّا</button>
+        <button class="export-btn red"   onclick="exportExcel('alaya')">❤️ تصدير عليّا</button>
+        <button class="export-btn full"  onclick="exportExcel('all')">📊 تصدير الكل (Backup)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="import-section">
+    <div class="import-section-header">📥 استيراد من Excel</div>
+    <div class="import-body">
+      <p style="font-size:13px;color:var(--text3);margin-bottom:14px;line-height:1.7">اختار نوع الاستيراد ثم ارفع ملف Excel.</p>
+
+      <!-- خيار الدمج/الاستبدال -->
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button id="opt-update"  class="export-btn" style="flex:1;font-size:12px;background:var(--header-bg);color:#fff;border-color:var(--header-bg)" onclick="setImportOpt('update')">🔄 دمج</button>
+        <button id="opt-replace" class="export-btn" style="flex:1;font-size:12px;border:2px solid var(--border);color:var(--text2)" onclick="setImportOpt('replace')">♻️ استبدال</button>
+      </div>
+
+      <!-- زرار ليّا -->
+      <label style="display:block;width:100%;padding:14px;border-radius:12px;border:2px dashed var(--green);text-align:center;cursor:pointer;font-size:14px;font-weight:800;color:var(--green);background:var(--green-bg);margin-bottom:10px">
+        💚 استيراد ليّا
+        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleImportFile(this, 'lee')">
+      </label>
+
+      <!-- زرار عليّا -->
+      <label style="display:block;width:100%;padding:14px;border-radius:12px;border:2px dashed var(--red-mid);text-align:center;cursor:pointer;font-size:14px;font-weight:800;color:var(--red-mid);background:var(--red-bg)">
+        ❤️ استيراد عليّا
+        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleImportFile(this, 'alaya')">
+      </label>
+
+      <!-- معاينة -->
+      <div id="import-preview" style="display:none;margin-top:14px">
+        <div style="font-size:13px;font-weight:800;color:var(--text2);margin-bottom:8px">📋 معاينة البيانات:</div>
+        <div id="import-preview-content" style="font-size:12px;color:var(--text3);background:var(--bg2);padding:12px;border-radius:10px;line-height:2"></div>
+        <button id="confirm-import-btn" onclick="confirmImport()" style="display:block;width:100%;margin-top:12px;padding:13px;border-radius:12px;border:none;background:var(--header-bg);color:#fff;font-family:Cairo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">✅ تأكيد الاستيراد</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:30px"></div>
+</div>
+
+<!-- PAGE: SETTINGS -->
+<div class="page" id="page-settings">
+  <div class="settings-section">
+    <div class="settings-section-title">👤 بيانات الحساب</div>
+    <div class="settings-row">
+      <div class="settings-row-icon">📝</div>
+      <div class="settings-row-info">
+        <div class="settings-row-label">اسم صاحب الكشف</div>
+        <div class="settings-row-sub" id="settings-owner-display">—</div>
+      </div>
+      <div class="settings-row-action">
+        <button class="settings-btn" onclick="openModal('modal-edit-owner')">تعديل</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-icon">🗓</div>
+      <div class="settings-row-info">
+        <div class="settings-row-label">الاشتراك</div>
+        <div class="settings-row-sub" id="settings-sub-display">—</div>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-icon">☁️</div>
+      <div class="settings-row-info">
+        <div class="settings-row-label">مزامنة يدوية</div>
+        <div class="settings-row-sub">رفع البيانات للسيرفر الآن</div>
+      </div>
+      <div class="settings-row-action">
+        <button class="settings-btn" onclick="syncNow()">🔄 مزامنة</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">🎨 ألوان التطبيق</div>
+    <div class="settings-row">
+      <div class="settings-row-icon">🖌️</div>
+      <div class="settings-row-info">
+        <div class="settings-row-label">لون الهيدر</div>
+      </div>
+      <div class="settings-row-action">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div class="color-swatch active" style="background:#1a1208" data-color="#1a1208" onclick="setHeaderColor(this)"></div>
+          <div class="color-swatch" style="background:#1a3a5c" data-color="#1a3a5c" onclick="setHeaderColor(this)"></div>
+          <div class="color-swatch" style="background:#2d1a5c" data-color="#2d1a5c" onclick="setHeaderColor(this)"></div>
+          <div class="color-swatch" style="background:#1a4a2e" data-color="#1a4a2e" onclick="setHeaderColor(this)"></div>
+          <div class="color-swatch" style="background:#5c1a1a" data-color="#5c1a1a" onclick="setHeaderColor(this)"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">⚠️ منطقة الخطر</div>
+    <div class="settings-row">
+      <div class="settings-row-icon">🚪</div>
+      <div class="settings-row-info">
+        <div class="settings-row-label">تسجيل الخروج</div>
+        <div class="settings-row-sub">العودة لشاشة الدخول</div>
+      </div>
+      <div class="settings-row-action">
+        <button class="settings-btn danger" onclick="doLogout()">خروج</button>
+      </div>
+    </div>
+  </div>
+  <div style="height:30px"></div>
+</div>
+
+<!-- FAB -->
+<button class="fab" id="main-fab" onclick="openAddModal()">
+  <span style="font-size:20px">＋</span> إضافة شخص
+</button>
+
+<!-- MODAL: ADD/EDIT PERSON -->
+<div class="modal-overlay" id="modal-person" onclick="closeModalIf(event,'modal-person')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title" id="mp-title">إضافة شخص</div>
+      <button class="modal-close" onclick="closeModal('modal-person')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="type-toggle">
+        <button class="type-btn active-green" id="type-lee"   onclick="setModalType('lee')">💚 ليّا عليه</button>
+        <button class="type-btn"              id="type-alaya" onclick="setModalType('alaya')">❤️ عليّا له</button>
+      </div>
+      <div class="modal-form-group">
+        <label class="modal-label">الاسم *</label>
+        <input class="form-input" id="mp-name"    type="text"   placeholder="الاسم بالكامل" style="width:100%;margin-bottom:10px">
+      </div>
+      <div class="modal-form-group">
+        <label class="modal-label">البلد</label>
+        <input class="form-input" id="mp-country" type="text"   placeholder="مثال: EG أو القاهرة" style="width:100%;margin-bottom:10px">
+      </div>
+      <div class="form-row">
+        <div>
+          <label class="modal-label">المبلغ</label>
+          <input class="form-input" id="mp-amount" type="number" placeholder="0" inputmode="numeric" min="0">
+        </div>
+        <div>
+          <label class="modal-label">التاريخ</label>
+          <input class="form-input" id="mp-date" type="date">
+        </div>
+      </div>
+      <div class="modal-form-group" style="margin-top:8px">
+        <label class="modal-label">المناسبة</label>
+        <input class="form-input" id="mp-occasion" type="text" placeholder="فرح، ختان، عزاء ..." style="width:100%">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel-btn" onclick="closeModal('modal-person')">إلغاء</button>
+      <button class="modal-save-btn"   onclick="savePerson()">✅ حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDIT OWNER -->
+<div class="modal-overlay" id="modal-edit-owner" onclick="closeModalIf(event,'modal-edit-owner')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title">✏️ تعديل الاسم</div>
+      <button class="modal-close" onclick="closeModal('modal-edit-owner')">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">اسم صاحب الكشف</label>
+      <input class="form-input" id="edit-owner-input" type="text" placeholder="الاسم" style="width:100%">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel-btn" onclick="closeModal('modal-edit-owner')">إلغاء</button>
+      <button class="modal-save-btn"   onclick="saveOwner()">✅ حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- PRINT AREA -->
+<div class="print-area" id="print-area"></div>
+
+<script>
+// ═══════════════════════════════════════
+//  CONFIG — غيّر ده لرابط السيرفر بتاعك
+// ═══════════════════════════════════════
+const SERVER_URL = 'http://localhost:3000'; // رابط السيرفر
+// مثال: const SERVER_URL = 'https://noqta.yourdomain.com';
+
+// ═══════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════
+let data      = { lee: [], alaya: [] };
+let profile   = { owner_name: '', header_color: '#1a1208', sub_end: null, username: '' };
+let token     = sessionStorage.getItem('noqta_token') || '';
+let currentPage   = 'lee';
+let modalType     = 'lee';
+let editPersonId  = null;
+let syncTimer     = null;
+let ws            = null;
+let importBuffer  = { lee: [], alaya: [] };
+let unifiedBuffer = { lee: [], alaya: [] };
+let importOption  = 'update';
+
+// ═══════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const today = () => new Date().toISOString().split('T')[0];
+const fmt = n => Number(n).toLocaleString('ar-EG');
+
+// ═══════════════════════════════════════
+//  API
+// ═══════════════════════════════════════
+async function api(method, path, body) {
+  const r = await fetch(`${SERVER_URL}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 401) { doLogout(); throw new Error('Unauthorized'); }
+  return r;
+}
+
+// ═══════════════════════════════════════
+//  LOGIN / LOGOUT
+// ═══════════════════════════════════════
+async function doLogin() {
+  const user = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const err  = document.getElementById('login-error');
+  const btn  = document.getElementById('login-btn');
+  err.textContent = '';
+  if (!user || !pass) { err.textContent = '❌ أدخل اليوزر والباسورد'; return; }
+  btn.disabled = true; btn.textContent = '⏳ جاري الدخول...';
+  try {
+    const r = await fetch(`${SERVER_URL}/api/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = '❌ ' + d.error; return; }
+    token = d.token;
+    sessionStorage.setItem('noqta_token', token);
+    profile = { ...profile, ...d.profile };
+    await loadData();
+    enterApp();
+  } catch(e) {
+    err.textContent = '❌ تعذر الاتصال بالسيرفر';
+  } finally {
+    btn.disabled = false; btn.textContent = '🔓 دخول';
+  }
+}
+
+function doLogout() {
+  token = '';
+  sessionStorage.removeItem('noqta_token');
+  data = { lee: [], alaya: [] };
+  if (ws) { ws.close(); ws = null; }
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('login-user').value = '';
+  document.getElementById('login-pass').value = '';
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('sub-expired-overlay').classList.remove('show');
+}
+
+async function enterApp() {
+  document.getElementById('login-overlay').classList.add('hidden');
+  setTimeout(() => document.getElementById('login-overlay').style.display = 'none', 400);
+  applyProfile();
+  updateSummary();
+  render('lee'); render('alaya');
+  checkSubscription();
+  connectWebSocket();
+}
+
+// ═══════════════════════════════════════
+//  DATA LOAD / SYNC
+// ═══════════════════════════════════════
+async function loadData() {
+  const r = await api('GET', '/api/data');
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error);
+  data    = { lee: d.lee || [], alaya: d.alaya || [] };
+  profile = { ...profile, ...d.profile };
+}
+
+function scheduleSave() {
+  if (syncTimer) clearTimeout(syncTimer);
+  showSyncBadge(true);
+  syncTimer = setTimeout(syncNow, 1500); // debounce 1.5s
+}
+
+async function syncNow() {
+  if (!token) return;
+  showSyncBadge(true);
+  try {
+    await api('POST', '/api/data/sync', {
+      lee: data.lee, alaya: data.alaya,
+      profile: { owner_name: profile.owner_name, header_color: profile.header_color }
+    });
+    showToast('☁️ تم الحفظ على السيرفر');
+  } catch(e) {
+    showToast('❌ فشل الحفظ — تحقق من الإنترنت');
+  } finally {
+    showSyncBadge(false);
+  }
+}
+
+function showSyncBadge(on) {
+  const b = document.getElementById('sync-bar');
+  const badge = document.getElementById('sync-badge');
+  if (on) { b.classList.add('syncing'); badge.classList.add('show'); }
+  else    { b.classList.remove('syncing'); badge.classList.remove('show'); }
+}
+
+// ═══════════════════════════════════════
+//  WEBSOCKET (real-time multi-device)
+// ═══════════════════════════════════════
+function connectWebSocket() {
+  if (!token) return;
+  const wsUrl = SERVER_URL.replace(/^http/, 'ws');
+  try {
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', token }));
+    ws.onmessage = async (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'data_changed') {
+        // Another device changed data — reload
+        await loadData();
+        updateSummary(); render('lee'); render('alaya');
+        showToast('🔄 تم تحديث البيانات');
+      } else if (msg.type === 'account_updated') {
+        showToast('⚠️ تم تحديث حسابك من الأدمن');
+        checkSubscription();
+      }
+    };
+    ws.onclose = () => setTimeout(connectWebSocket, 5000); // reconnect
+  } catch {}
+}
+
+// ═══════════════════════════════════════
+//  SUBSCRIPTION CHECK
+// ═══════════════════════════════════════
+function checkSubscription() {
+  if (!profile.sub_end) return;
+  const daysLeft = Math.ceil((profile.sub_end - Date.now()) / 86400000);
+
+  if (daysLeft <= 0) {
+    document.getElementById('sub-expired-overlay').classList.add('show');
+    return;
+  }
+
+  const alert = document.getElementById('sub-alert');
+  document.getElementById('settings-sub-display').textContent =
+    `ينتهي ${new Date(profile.sub_end).toLocaleDateString('ar-EG')} (${daysLeft} يوم متبقي)`;
+
+  if (daysLeft <= 7) {
+    alert.textContent = `⚠️ اشتراكك ينتهي بعد ${daysLeft} يوم — تواصل مع الأدمن للتجديد`;
+    alert.classList.add('show');
+  }
+}
+
+// ═══════════════════════════════════════
+//  PROFILE
+// ═══════════════════════════════════════
+function applyProfile() {
+  applyHeaderColor(profile.header_color || '#1a1208');
+  document.getElementById('header-owner-name').textContent = profile.owner_name ? 'كشف ' + profile.owner_name : '';
+  document.getElementById('settings-owner-display').textContent = profile.owner_name || '—';
+  if (profile.sub_end) checkSubscription();
+}
+
+function applyHeaderColor(color) {
+  document.documentElement.style.setProperty('--header-bg', color);
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.toggle('active', s.dataset.color === color));
+}
+
+function setHeaderColor(el) {
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  profile.header_color = el.dataset.color;
+  applyHeaderColor(profile.header_color);
+  scheduleSave();
+}
+
+function saveOwner() {
+  const v = document.getElementById('edit-owner-input').value.trim();
+  if (!v) { showToast('❌ أدخل الاسم'); return; }
+  profile.owner_name = v;
+  document.getElementById('header-owner-name').textContent = 'كشف ' + v;
+  document.getElementById('settings-owner-display').textContent = v;
+  closeModal('modal-edit-owner');
+  scheduleSave();
+  showToast('✅ تم تحديث الاسم');
+}
+
+// ═══════════════════════════════════════
+//  PAGE SWITCHING
+// ═══════════════════════════════════════
+function switchPage(page, btn) {
+  currentPage = page;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-green','active-red','active-gold'));
+  if (btn) {
+    if      (page === 'lee')      btn.classList.add('active-green');
+    else if (page === 'alaya')    btn.classList.add('active-red');
+    else                          btn.classList.add('active-gold');
+  }
+  document.getElementById('main-fab').style.display = (page === 'import' || page === 'settings') ? 'none' : 'flex';
+  if (page === 'lee' || page === 'alaya') render(page);
+  if (page === 'settings') {
+    document.getElementById('edit-owner-input').value = profile.owner_name || '';
+  }
+}
+
+// ═══════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════
+const COUNTRY_NAMES = {
+  'EG':'مصر','SA':'السعودية','AE':'الإمارات','KW':'الكويت','QA':'قطر','BH':'البحرين','OM':'عُمان',
+  'JO':'الأردن','LB':'لبنان','SY':'سوريا','IQ':'العراق','YE':'اليمن','LY':'ليبيا',
+  'TN':'تونس','DZ':'الجزائر','MA':'المغرب','SD':'السودان','US':'أمريكا','GB':'بريطانيا',
+  'DE':'ألمانيا','FR':'فرنسا','IT':'إيطاليا','CA':'كندا','AU':'أستراليا','TR':'تركيا',
+};
+function expandCountry(code) {
+  if (!code) return '';
+  const up = String(code).trim().toUpperCase();
+  return COUNTRY_NAMES[up] || code;
+}
+
+function totalFor(p) { return p.entries.reduce((s,e) => s + e.amount, 0); }
+
+function render(type, filter = '') {
+  const list = document.getElementById('list-' + type);
+  let people = data[type];
+  if (filter) {
+    const f = filter.toLowerCase();
+    people = people.filter(p => p.name.toLowerCase().includes(f) || (p.country||'').toLowerCase().includes(f));
+  }
+  if (!people.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">${type==='lee'?'💚':'❤️'}</div>
+      <div class="empty-state-title">${filter?'مفيش نتائج':(type==='lee'?'مفيش نقوط ليّا':'مفيش نقوط عليّا')}</div>
+      <div class="empty-state-sub">${filter?'جرب كلمة تانية':'اضغط ＋ إضافة شخص للبداية'}</div>
+    </div>`;
+    return;
+  }
+  const isGreen     = type === 'lee';
+  const avatarClass = isGreen ? 'avatar-green' : 'avatar-red';
+  const amountClass = isGreen ? 'amount-green'  : 'amount-red';
+  const dotClass    = isGreen ? 'dot-green'      : 'dot-red';
+  const btnClass    = isGreen ? 'add-btn-green'  : 'add-btn-red';
+
+  list.innerHTML = people.map(p => {
+    const total    = totalFor(p);
+    const initials = p.name.split(' ').slice(0,2).map(w=>w[0]||'').join('');
+    const historyHtml = p.entries.length
+      ? [...p.entries].reverse().map(e => `
+        <div class="history-item">
+          <div class="history-dot ${dotClass}"></div>
+          <div class="history-info">
+            <div class="history-occasion">${e.occasion||'نقطة'}</div>
+            <div class="history-date">${e.date||'—'}</div>
+          </div>
+          <div class="history-amount ${amountClass}">${fmt(e.amount)} ج</div>
+        </div>`).join('')
+      : `<div class="no-history">لا توجد إضافات بعد</div>`;
+
+    return `<div class="person-card" id="card-${p.id}">
+      <div class="person-card-top" onclick="toggleCard('${p.id}')">
+        <div class="person-avatar ${avatarClass}">${initials}</div>
+        <div class="person-info">
+          <div class="person-name">${p.name}</div>
+          <div class="person-country">📍 ${expandCountry(p.country)||'غير محدد'}</div>
+        </div>
+        <div class="person-amount">
+          <div class="person-amount-num ${amountClass}">${fmt(total)}</div>
+          <div class="person-amount-label">جنيه</div>
+        </div>
+        <div class="expand-icon" id="exp-${p.id}">▼</div>
+      </div>
+      <div class="person-detail" id="detail-${p.id}">
+        <div class="history-list" style="margin-top:10px">${historyHtml}</div>
+        <div class="add-entry-form">
+          <div class="add-entry-title">➕ إضافة مبلغ جديد</div>
+          <div class="form-row">
+            <input class="form-input" type="number" id="ea-amount-${p.id}" placeholder="المبلغ" inputmode="numeric" min="0">
+            <input class="form-input" type="date"   id="ea-date-${p.id}"   value="${today()}">
+          </div>
+          <div class="form-row">
+            <input class="form-input form-full" id="ea-occasion-${p.id}" placeholder="المناسبة (فرح، ختان، ...)">
+          </div>
+          <button class="add-btn ${btnClass}" onclick="addEntryInline('${type}','${p.id}')">
+            ${isGreen?'💚':'❤️'} إضافة للكشف
+          </button>
+        </div>
+        <div class="card-actions">
+          <button class="card-action-btn"       onclick="editPerson('${type}','${p.id}')">✏️ تعديل</button>
+          <button class="card-action-btn print" onclick="printPerson('${type}','${p.id}')">🖨️ طباعة</button>
+          <button class="card-action-btn del"   onclick="deletePerson('${type}','${p.id}')">🗑 حذف</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  updateSummary();
+}
+
+function toggleCard(id) {
+  const detail = document.getElementById('detail-' + id);
+  const icon   = document.getElementById('exp-'    + id);
+  const isOpen = detail.classList.contains('open');
+  document.querySelectorAll('.person-detail.open').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.expand-icon.open').forEach(i => i.classList.remove('open'));
+  if (!isOpen) { detail.classList.add('open'); icon.classList.add('open'); }
+}
+
+function searchPeople(type, value) { render(type, value); }
+
+function updateSummary() {
+  const sumLee   = data.lee.reduce((s,p)=>s+totalFor(p), 0);
+  const sumAlaya = data.alaya.reduce((s,p)=>s+totalFor(p), 0);
+  document.getElementById('total-lee').textContent   = fmt(sumLee)   + ' ج';
+  document.getElementById('total-alaya').textContent = fmt(sumAlaya) + ' ج';
+  document.getElementById('count-lee').textContent   = data.lee.length   + ' شخص';
+  document.getElementById('count-alaya').textContent = data.alaya.length + ' شخص';
+  document.getElementById('badge-lee').textContent   = data.lee.length;
+  document.getElementById('badge-alaya').textContent = data.alaya.length;
+}
+
+// ═══════════════════════════════════════
+//  ADD / EDIT PERSON
+// ═══════════════════════════════════════
+function openAddModal() {
+  editPersonId = null;
+  document.getElementById('mp-title').textContent = 'إضافة شخص';
+  ['mp-name','mp-country','mp-amount','mp-occasion'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('mp-date').value = today();
+  setModalType(currentPage === 'alaya' ? 'alaya' : 'lee');
+  openModal('modal-person');
+}
+
+function setModalType(type) {
+  modalType = type;
+  document.getElementById('type-lee').className   = 'type-btn' + (type==='lee'   ? ' active-green' : '');
+  document.getElementById('type-alaya').className = 'type-btn' + (type==='alaya' ? ' active-red'   : '');
+}
+
+function savePerson() {
+  const name     = document.getElementById('mp-name').value.trim();
+  const country  = document.getElementById('mp-country').value.trim();
+  const amount   = parseFloat(document.getElementById('mp-amount').value) || 0;
+  const occasion = document.getElementById('mp-occasion').value.trim() || 'نقطة';
+  const date     = document.getElementById('mp-date').value || today();
+  if (!name) { showToast('❌ أدخل اسم الشخص'); return; }
+
+  if (editPersonId) {
+    const p = [...data.lee, ...data.alaya].find(x => x.id === editPersonId);
+    if (p) { p.name = name; p.country = country; }
+  } else {
+    const entries = amount > 0 ? [{ id: uid(), amount, occasion, date }] : [];
+    data[modalType].push({ id: uid(), name, country, entries });
+  }
+  scheduleSave(); updateSummary(); render('lee'); render('alaya');
+  closeModal('modal-person');
+  showToast(editPersonId ? '✅ تم التعديل' : '✅ تمت الإضافة');
+  editPersonId = null;
+}
+
+function editPerson(type, id) {
+  const p = data[type].find(x => x.id === id);
+  if (!p) return;
+  editPersonId = id;
+  document.getElementById('mp-title').textContent = 'تعديل بيانات';
+  document.getElementById('mp-name').value    = p.name;
+  document.getElementById('mp-country').value = p.country || '';
+  document.getElementById('mp-amount').value  = '';
+  document.getElementById('mp-occasion').value = '';
+  document.getElementById('mp-date').value    = today();
+  setModalType(type);
+  openModal('modal-person');
+}
+
+function deletePerson(type, id) {
+  if (!confirm('هل تريد حذف هذا الشخص؟')) return;
+  data[type] = data[type].filter(p => p.id !== id);
+  scheduleSave(); updateSummary(); render(type);
+  showToast('🗑 تم الحذف');
+}
+
+function addEntryInline(type, id) {
+  const amount  = parseFloat(document.getElementById('ea-amount-'  + id).value) || 0;
+  const date    = document.getElementById('ea-date-'    + id).value || today();
+  const occasion= document.getElementById('ea-occasion-'+ id).value.trim() || 'نقطة';
+  if (!amount || amount <= 0) { showToast('❌ أدخل مبلغ صحيح'); return; }
+  const p = data[type].find(x => x.id === id);
+  if (!p) return;
+  p.entries.push({ id: uid(), amount, date, occasion });
+  scheduleSave(); render(type);
+  showToast(`✅ تمت إضافة ${fmt(amount)} ج`);
+}
+
+// ═══════════════════════════════════════
+//  PRINT
+// ═══════════════════════════════════════
+function printPerson(type, id) {
+  const p = data[type].find(x => x.id === id);
+  if (!p) return;
+  const total = totalFor(p);
+  const isGreen = type === 'lee';
+  const pa = document.getElementById('print-area');
+  pa.innerHTML = `
+    <div style="font-family:'Cairo',sans-serif;direction:rtl;max-width:400px;margin:0 auto">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:28px;font-weight:900">كشف النقوط</div>
+        <div style="font-size:14px;color:#666">${profile.owner_name||''}</div>
+      </div>
+      <div style="border:2px solid #000;border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="font-size:18px;font-weight:900">${p.name}</div>
+        <div style="font-size:12px;color:#888;margin-top:4px">📍 ${expandCountry(p.country)||'—'}</div>
+        <div style="margin-top:12px;font-size:22px;font-weight:900;color:${isGreen?'#1a7a4a':'#b83232'}">
+          إجمالي: ${fmt(total)} جنيه
+        </div>
+      </div>
+      ${p.entries.map(e=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #ccc">
+        <div><div style="font-weight:700">${e.occasion||'نقطة'}</div><div style="font-size:11px;color:#888">${e.date||'—'}</div></div>
+        <div style="font-weight:900;color:${isGreen?'#1a7a4a':'#b83232'}">${fmt(e.amount)} ج</div>
+      </div>`).join('')}
+      <div style="text-align:center;margin-top:20px;font-size:11px;color:#aaa">طُبع بتاريخ ${new Date().toLocaleDateString('ar-EG')}</div>
+    </div>`;
+  window.print();
+}
+
+// ═══════════════════════════════════════
+//  EXPORT EXCEL
+// ═══════════════════════════════════════
+// ═══════════════════════════════════════
+//  IMPORT EXCEL
+// ═══════════════════════════════════════
+function setImportOpt(opt) {
+  importOption = opt;
+  const btnU = document.getElementById('opt-update');
+  const btnR = document.getElementById('opt-replace');
+  if (opt === 'update') {
+    btnU.style.cssText = 'flex:1;font-size:12px;background:var(--header-bg);color:#fff;border-color:var(--header-bg);padding:13px;border-radius:12px;border:2px solid;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer';
+    btnR.style.cssText = 'flex:1;font-size:12px;background:;color:var(--text2);border:2px solid var(--border);padding:13px;border-radius:12px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer';
+  } else {
+    btnR.style.cssText = 'flex:1;font-size:12px;background:var(--red-mid);color:#fff;border-color:var(--red-mid);padding:13px;border-radius:12px;border:2px solid;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer';
+    btnU.style.cssText = 'flex:1;font-size:12px;background:;color:var(--text2);border:2px solid var(--border);padding:13px;border-radius:12px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer';
+  }
+}
+
+function handleImportFile(input, forceType) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const buf = { lee: [], alaya: [] };
+      wb.SheetNames.forEach(name => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[name]);
+        // لو المستخدم اختار نوع محدد استخدمه، وإلا احكم من اسم الشيت
+        const type = forceType || ((name.includes('ليّا') || name.includes('ليا') || name.toLowerCase() === 'lee') ? 'lee' : 'alaya');
+        const people = {};
+        rows.forEach(r => {
+          const nm = (r['الاسم'] || r['Name'] || '').toString().trim();
+          if (!nm) return;
+          if (!people[nm]) people[nm] = { id: uid(), name: nm, country: r['البلد'] || r['Country'] || '', entries: [] };
+          const amt = Number(r['المبلغ'] || r['Amount'] || 0);
+          if (amt) people[nm].entries.push({ id: uid(), amount: amt, occasion: r['المناسبة'] || r['Occasion'] || '', date: r['التاريخ'] || r['Date'] || '' });
+        });
+        buf[type] = [...buf[type], ...Object.values(people)];
+      });
+      window._importBuf = buf;
+      const lc = buf.lee.length, ac = buf.alaya.length;
+      const typeLabel = forceType === 'lee' ? '💚 ليّا فقط' : forceType === 'alaya' ? '❤️ عليّا فقط' : 'الكل';
+      document.getElementById('import-preview-content').innerHTML =
+        '<div>📋 نوع الاستيراد: <b>' + typeLabel + '</b></div>' +
+        (lc ? '<div>💚 ليّا: <b>' + lc + ' شخص</b></div>' : '') +
+        (ac ? '<div>❤️ عليّا: <b>' + ac + ' شخص</b></div>' : '') +
+        '<div>📊 الإجمالي: <b>' + (lc+ac) + ' شخص</b></div>' +
+        '<div style="margin-top:8px;color:var(--gold)">⚠️ وضع: ' + (importOption === 'update' ? 'دمج مع الموجود' : 'استبدال كامل') + '</div>';
+      document.getElementById('import-preview').style.display = 'block';
+      input.value = '';
+    } catch(err) { showToast('❌ خطأ في قراءة الملف'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function confirmImport() {
+  const buf = window._importBuf;
+  if (!buf || (!buf.lee.length && !buf.alaya.length)) { showToast('❌ مفيش بيانات'); return; }
+  if (importOption === 'replace') {
+    data.lee = buf.lee; data.alaya = buf.alaya;
+  } else {
+    const names = new Set([...data.lee, ...data.alaya].map(p => p.name.trim().toLowerCase()));
+    data.lee   = [...data.lee,   ...buf.lee.filter(p => !names.has(p.name.trim().toLowerCase()))];
+    data.alaya = [...data.alaya, ...buf.alaya.filter(p => !names.has(p.name.trim().toLowerCase()))];
+  }
+  render('lee'); render('alaya'); updateSummary();
+  document.getElementById('import-preview').style.display = 'none';
+  window._importBuf = null;
+  try {
+    const r = await api('POST', '/api/data/sync', { lee: data.lee, alaya: data.alaya });
+    showToast(r.ok ? '✅ تم الاستيراد والحفظ' : '✅ تم الاستيراد');
+  } catch { showToast('✅ تم الاستيراد محلياً'); }
+}
+
+function exportExcel(type) {
+  const wb = XLSX.utils.book_new();
+  const makeRows = (arr) => arr.map(p => {
+    const total = totalFor(p);
+    const base = { الاسم: p.name, البلد: expandCountry(p.country)||p.country||'', الإجمالي: total };
+    if (p.entries.length === 0) return [base];
+    return p.entries.map((e,i) => ({
+      الاسم: i===0 ? p.name : '', البلد: i===0 ? (expandCountry(p.country)||p.country||'') : '',
+      المناسبة: e.occasion||'', التاريخ: e.date||'', المبلغ: e.amount,
+      الإجمالي: i===0 ? total : '',
+    }));
+  }).flat();
+
+  if (type === 'lee' || type === 'all') {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(makeRows(data.lee)),   'ليّا');
+  }
+  if (type === 'alaya' || type === 'all') {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(makeRows(data.alaya)), 'عليّا');
+  }
+  XLSX.writeFile(wb, `كشف_النقوط_${new Date().toLocaleDateString('ar-EG').replace(/\//g,'-')}.xlsx`);
+  showToast('✅ تم التصدير');
+}
+
+// ═══════════════════════════════════════
+//  MODAL HELPERS
+// ═══════════════════════════════════════
+function openModal(id)       { document.getElementById(id).classList.add('open'); }
+function closeModal(id)      { document.getElementById(id).classList.remove('open'); }
+function closeModalIf(e, id) { if (e.target.id === id) closeModal(id); }
+
+// ═══════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════
+//  INIT — Check saved token
+// ═══════════════════════════════════════
+(async function init() {
+  if (token) {
+    try {
+      await loadData();
+      enterApp();
+    } catch {
+      token = '';
+      sessionStorage.removeItem('noqta_token');
+    }
+  }
+})();
+// ── Register Service Worker (PWA) ──────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(() => console.log('✅ SW registered'))
+      .catch(e => console.log('SW error:', e));
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحكم نقطة — الأدمن</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:      #0d0d0d;
+  --bg2:     #161616;
+  --card:    #1c1c1c;
+  --border:  #2a2a2a;
+  --accent:  #e8a020;
+  --accent2: #c8860a;
+  --green:   #22c55e;
+  --red:     #ef4444;
+  --blue:    #3b82f6;
+  --text:    #f5f0e8;
+  --text2:   #a09080;
+  --text3:   #5a5040;
+  --radius:  14px;
+  --shadow:  0 4px 24px rgba(0,0,0,0.4);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { min-height: 100vh; font-family: 'Cairo', sans-serif; background: var(--bg); color: var(--text); }
+
+/* ── LOGIN ── */
+#login-screen {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: var(--bg); z-index: 9999; padding: 20px;
+}
+.login-box {
+  background: var(--card); border: 1px solid var(--border); border-radius: 24px;
+  padding: 48px 40px; width: 100%; max-width: 380px; text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.login-logo { font-size: 52px; margin-bottom: 8px; }
+.login-title { font-size: 24px; font-weight: 900; color: var(--accent); margin-bottom: 4px; }
+.login-sub { font-size: 13px; color: var(--text2); margin-bottom: 32px; }
+.input {
+  width: 100%; background: var(--bg2); border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 13px 16px; font-family: 'Cairo', sans-serif;
+  font-size: 15px; color: var(--text); outline: none; margin-bottom: 12px;
+  transition: border-color 0.2s; text-align: right;
+}
+.input:focus { border-color: var(--accent); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 12px 20px; border-radius: 10px; border: none; font-family: 'Cairo', sans-serif;
+  font-size: 14px; font-weight: 800; cursor: pointer; transition: all 0.2s;
+}
+.btn-accent  { background: var(--accent); color: #000; width: 100%; padding: 14px; font-size: 16px; }
+.btn-accent:hover { background: var(--accent2); }
+.btn-green   { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+.btn-red     { background: rgba(239,68,68,0.12); color: var(--red);   border: 1px solid rgba(239,68,68,0.25); }
+.btn-blue    { background: rgba(59,130,246,0.12); color: var(--blue); border: 1px solid rgba(59,130,246,0.25); }
+.btn-ghost   { background: var(--bg2); color: var(--text2); border: 1px solid var(--border); }
+.btn:hover   { transform: translateY(-1px); }
+.btn:active  { transform: scale(0.97); }
+.err-msg { color: var(--red); font-size: 13px; font-weight: 700; margin-top: 8px; min-height: 20px; }
+
+/* ── APP SHELL ── */
+#app { display: none; min-height: 100vh; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 240px;
+  background: var(--card); border-left: 1px solid var(--border);
+  padding: 28px 16px; display: flex; flex-direction: column; gap: 4px;
+  z-index: 100;
+}
+.sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 0 10px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.sidebar-logo-icon { font-size: 28px; }
+.sidebar-logo-text { font-size: 18px; font-weight: 900; color: var(--accent); }
+.sidebar-logo-sub { font-size: 11px; color: var(--text3); }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+  border-radius: 10px; cursor: pointer; transition: all 0.15s;
+  font-size: 14px; font-weight: 700; color: var(--text2);
+  border: 1px solid transparent;
+}
+.nav-item:hover  { background: var(--bg2); color: var(--text); }
+.nav-item.active { background: rgba(232,160,32,0.12); color: var(--accent); border-color: rgba(232,160,32,0.2); }
+.nav-item-icon { font-size: 18px; width: 24px; text-align: center; }
+.sidebar-bottom { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
+
+/* ── MAIN CONTENT ── */
+.main { margin-right: 240px; padding: 32px; min-height: 100vh; }
+
+/* ── TOPBAR ── */
+.topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+.topbar-title { font-size: 24px; font-weight: 900; }
+.topbar-sub { font-size: 13px; color: var(--text2); margin-top: 2px; }
+
+/* ── STATS GRID ── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+.stat-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px 22px; position: relative; overflow: hidden;
+}
+.stat-card::before {
+  content: ''; position: absolute; top: 0; right: 0; width: 3px; height: 100%;
+}
+.stat-card.accent::before { background: var(--accent); }
+.stat-card.green::before  { background: var(--green); }
+.stat-card.red::before    { background: var(--red); }
+.stat-card.blue::before   { background: var(--blue); }
+.stat-icon { font-size: 28px; margin-bottom: 10px; }
+.stat-value { font-size: 32px; font-weight: 900; line-height: 1; }
+.stat-label { font-size: 12px; color: var(--text2); margin-top: 4px; font-weight: 600; letter-spacing: 0.5px; }
+
+/* ── SECTION ── */
+.section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; }
+.section-header { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.section-title { font-size: 16px; font-weight: 900; }
+
+/* ── TABLE ── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  padding: 12px 18px; text-align: right; font-size: 11px; font-weight: 800;
+  color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border); background: var(--bg2); white-space: nowrap;
+}
+td { padding: 14px 18px; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+
+/* ── BADGES ── */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 800; }
+.badge-green  { background: rgba(34,197,94,0.12); color: var(--green); }
+.badge-red    { background: rgba(239,68,68,0.12); color: var(--red); }
+.badge-amber  { background: rgba(232,160,32,0.15); color: var(--accent); }
+.badge-gray   { background: rgba(255,255,255,0.06); color: var(--text2); }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+  z-index: 500; display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s; padding: 20px;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+  width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+  transform: scale(0.95); transition: transform 0.2s;
+}
+.modal-overlay.open .modal { transform: scale(1); }
+.modal-header { padding: 22px 24px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.modal-title { font-size: 18px; font-weight: 900; }
+.modal-close { background: var(--bg2); border: none; color: var(--text2); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+.modal-body { padding: 24px; }
+.form-group { margin-bottom: 16px; }
+.form-label { font-size: 12px; font-weight: 800; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: block; }
+.form-hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ── TOAST ── */
+#toast {
+  position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: #222; border: 1px solid var(--border); color: var(--text);
+  padding: 12px 24px; border-radius: 50px; font-size: 14px; font-weight: 700;
+  z-index: 9999; opacity: 0; transition: all 0.25s; white-space: nowrap;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── SEARCH BAR ── */
+.search-bar { position: relative; flex: 1; max-width: 320px; }
+.search-bar input { width: 100%; background: var(--bg2); border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 14px 9px 36px; font-family: 'Cairo', sans-serif; font-size: 14px; color: var(--text); outline: none; }
+.search-bar input:focus { border-color: var(--accent); }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 14px; pointer-events: none; }
+
+/* ── PROGRESS BAR ── */
+.sub-bar { background: var(--bg2); border-radius: 4px; height: 5px; overflow: hidden; margin-top: 4px; min-width: 80px; }
+.sub-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.sub-fill.active  { background: var(--green); }
+.sub-fill.warning { background: var(--accent); }
+.sub-fill.expired { background: var(--red); }
+
+/* ── CLIENT DATA MODAL ── */
+.modal-xl {
+  background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+  width: 100%; max-width: 780px; max-height: 90vh; overflow: hidden;
+  display: flex; flex-direction: column;
+  transform: scale(0.95); transition: transform 0.2s;
+}
+.modal-overlay.open .modal-xl { transform: scale(1); }
+.client-data-tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--bg2); }
+.client-data-tab {
+  flex: 1; padding: 12px 16px; border: none; background: transparent;
+  font-family: 'Cairo', sans-serif; font-size: 13px; font-weight: 700;
+  color: var(--text2); cursor: pointer; border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+}
+.client-data-tab.active-green { color: var(--green); border-bottom-color: var(--green); background: var(--card); }
+.client-data-tab.active-red   { color: var(--red);   border-bottom-color: var(--red);   background: var(--card); }
+.client-data-body { overflow-y: auto; flex: 1; }
+.client-data-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px;
+}
+.client-data-search {
+  background: var(--bg2); border: 1.5px solid var(--border); border-radius: 10px;
+  padding: 8px 14px; font-family: 'Cairo', sans-serif; font-size: 14px; color: var(--text);
+  outline: none; width: 220px;
+}
+.client-data-search:focus { border-color: var(--accent); }
+.person-row {
+  display: flex; align-items: center; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.04);
+  cursor: pointer; transition: background 0.15s; gap: 12px;
+}
+.person-row:hover { background: rgba(255,255,255,0.02); }
+.person-row:last-child { border-bottom: none; }
+.person-avatar-sm {
+  width: 40px; height: 40px; border-radius: 10px; display: flex;
+  align-items: center; justify-content: center; font-size: 16px; font-weight: 900;
+  color: #fff; flex-shrink: 0;
+}
+.person-row-info { flex: 1; min-width: 0; }
+.person-row-name { font-size: 15px; font-weight: 800; }
+.person-row-country { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.person-row-amount { font-size: 18px; font-weight: 900; direction: ltr; white-space: nowrap; }
+.person-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* EXPANDED PERSON */
+.person-entries-wrap { background: var(--bg2); padding: 12px 20px 14px 20px; border-bottom: 1px solid var(--border); display: none; }
+.person-entries-wrap.open { display: block; }
+.entry-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--border); }
+.entry-row:last-child { border-bottom: none; }
+.entry-info .entry-occasion { font-size: 13px; font-weight: 700; }
+.entry-info .entry-date { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.entry-amount { font-size: 15px; font-weight: 900; direction: ltr; }
+
+.summary-bar {
+  display: flex; gap: 16px; padding: 14px 20px; background: var(--bg2);
+  border-top: 1px solid var(--border); flex-wrap: wrap;
+}
+.summary-item { font-size: 13px; color: var(--text2); font-weight: 700; }
+.summary-item span { color: var(--text); font-weight: 900; }
+
+/* ── LOADING ── */
+.loading { text-align: center; padding: 48px; color: var(--text2); font-size: 14px; }
+.spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── EMPTY STATE ── */
+.empty { text-align: center; padding: 64px 24px; color: var(--text2); }
+.empty-icon { font-size: 52px; opacity: 0.4; margin-bottom: 12px; }
+.empty-title { font-size: 18px; font-weight: 800; color: var(--text3); margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ── -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">🎊</div>
+    <div class="login-title">لوحة تحكم نقطة</div>
+    <div class="login-sub">تسجيل دخول الأدمن</div>
+    <input class="input" id="a-user" type="text"     placeholder="اليوزر" autocomplete="username" onkeydown="if(event.key==='Enter')adminLogin()">
+    <input class="input" id="a-pass" type="password" placeholder="الباسورد" autocomplete="current-password" onkeydown="if(event.key==='Enter')adminLogin()">
+    <button class="btn btn-accent" onclick="adminLogin()">دخول</button>
+    <div class="err-msg" id="a-err"></div>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app" style="display:none">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">🎊</div>
+      <div>
+        <div class="sidebar-logo-text">نقطة</div>
+        <div class="sidebar-logo-sub">لوحة التحكم</div>
+      </div>
+    </div>
+
+    <div class="nav-item active" id="nav-dashboard" onclick="showPage('dashboard')">
+      <span class="nav-item-icon">📊</span> الإحصائيات
+    </div>
+    <div class="nav-item" id="nav-clients" onclick="showPage('clients')">
+      <span class="nav-item-icon">👥</span> العملاء
+    </div>
+    <div class="nav-item" id="nav-add" onclick="openCreateModal()">
+      <span class="nav-item-icon">➕</span> عميل جديد
+    </div>
+    <div class="nav-item" id="nav-settings" onclick="showPage('settings')">
+      <span class="nav-item-icon">⚙️</span> الإعدادات
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="nav-item" onclick="logout()">
+        <span class="nav-item-icon">🚪</span> خروج
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- DASHBOARD PAGE -->
+    <div id="page-dashboard">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">📊 الإحصائيات</div>
+          <div class="topbar-sub" id="dash-date">—</div>
+        </div>
+        <button class="btn btn-ghost" onclick="loadStats(); loadClients();">🔄 تحديث</button>
+      </div>
+
+      <div class="stats-grid" id="stats-grid">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+      <!-- Expiring Soon Table -->
+      <div class="section" id="expiring-section" style="display:none">
+        <div class="section-header">
+          <div class="section-title">⚠️ اشتراكات تنتهي خلال 7 أيام</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" style="font-size:13px" onclick="renewExpired(30)">🔄 جدد الكل +30 يوم</button>
+            <button class="btn btn-ghost" style="font-size:13px" onclick="renewExpired(90)">🔄 جدد الكل +90 يوم</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>الاسم</th><th>اليوزر</th><th>ينتهي في</th><th>إجراء</th></tr></thead>
+            <tbody id="expiring-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CLIENTS PAGE -->
+    <div id="page-clients" style="display:none">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">👥 العملاء</div>
+          <div class="topbar-sub" id="clients-count">جاري التحميل...</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div class="search-bar">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="search-input" placeholder="بحث باليوزر أو الاسم..." oninput="applyFilters()">
+          </div>
+          <select class="input" id="filter-status" onchange="applyFilters()" style="width:auto;margin:0;padding:9px 12px;font-size:13px">
+            <option value="all">🔘 الكل</option>
+            <option value="active">✅ فعّال</option>
+            <option value="expiring">⚠️ ينتهي قريباً</option>
+            <option value="expired">⏳ منتهي</option>
+            <option value="disabled">🚫 موقوف</option>
+          </select>
+          <button class="btn btn-ghost" onclick="exportClientsExcel()" title="تصدير Excel">📊 Excel</button>
+          <button class="btn btn-accent" onclick="openCreateModal()">➕ عميل جديد</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>العميل</th>
+                <th>اليوزر</th>
+                <th>الاشتراك</th>
+                <th>الحالة</th>
+                <th>آخر دخول</th>
+                <th>البيانات</th>
+                <th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="clients-tbody">
+              <tr><td colspan="7"><div class="loading"><div class="spinner"></div><br>جاري التحميل...</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS PAGE -->
+    <div id="page-settings" style="display:none">
+      <div class="topbar">
+        <div><div class="topbar-title">⚙️ إعدادات الأدمن</div></div>
+      </div>
+      <div class="section" style="max-width:480px">
+        <div class="section-header"><div class="section-title">🔑 تغيير باسورد الأدمن</div></div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">الباسورد الحالي</label>
+            <input class="input" id="s-old" type="password" placeholder="••••••">
+          </div>
+          <div class="form-group">
+            <label class="form-label">الباسورد الجديد</label>
+            <input class="input" id="s-new" type="password" placeholder="••••••">
+          </div>
+          <div class="form-group">
+            <label class="form-label">تأكيد الباسورد الجديد</label>
+            <input class="input" id="s-new2" type="password" placeholder="••••••">
+          </div>
+          <button class="btn btn-accent" onclick="changeAdminPwd()" style="width:100%">حفظ الباسورد الجديد</button>
+          <div class="err-msg" id="s-err"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- .main -->
+</div><!-- #app -->
+
+<!-- ── MODAL: CREATE CLIENT ── -->
+<div class="modal-overlay" id="modal-create" onclick="closeModalIf(event,'modal-create')">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">➕ إضافة عميل جديد</div>
+      <button class="modal-close" onclick="closeModal('modal-create')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">اليوزر *</label>
+          <input class="input" id="c-user" type="text" placeholder="moustafa99">
+        </div>
+        <div class="form-group">
+          <label class="form-label">الباسورد *</label>
+          <input class="input" id="c-pass" type="text" placeholder="••••••">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">اسم صاحب الكشف</label>
+        <input class="input" id="c-owner" type="text" placeholder="مصطفى محمد">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">مدة الاشتراك (أيام)</label>
+          <input class="input" id="c-days" type="number" value="30" min="1">
+          <div class="form-hint">30 يوم = شهر، 365 = سنة</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">نوع الخطة</label>
+          <select class="input" id="c-plan">
+            <option value="monthly">شهري</option>
+            <option value="yearly">سنوي</option>
+            <option value="lifetime">مدى الحياة</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ملاحظات (اختياري)</label>
+        <input class="input" id="c-notes" type="text" placeholder="رقم التليفون أو أي ملاحظة...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-create')">إلغاء</button>
+      <button class="btn btn-accent" onclick="createClient()">✅ إنشاء العميل</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: EDIT CLIENT ── -->
+<div class="modal-overlay" id="modal-edit" onclick="closeModalIf(event,'modal-edit')">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="edit-title">✏️ تعديل العميل</div>
+      <button class="modal-close" onclick="closeModal('modal-edit')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="e-id">
+      <div class="form-group">
+        <label class="form-label">اسم صاحب الكشف</label>
+        <input class="input" id="e-owner" type="text">
+      </div>
+      <div class="form-group">
+        <label class="form-label">باسورد جديد (اتركه فاضي لو مش هتغيره)</label>
+        <input class="input" id="e-pass" type="text" placeholder="••••••">
+      </div>
+      <hr style="border-color:var(--border);margin:16px 0">
+      <div class="form-label" style="margin-bottom:12px">🗓 تجديد الاشتراك</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">إضافة أيام</label>
+          <input class="input" id="e-days" type="number" value="30" min="1" placeholder="30">
+          <div class="form-hint">تضاف فوق تاريخ الانتهاء الحالي</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">أو حدد تاريخ انتهاء</label>
+          <input class="input" id="e-enddate" type="date">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ملاحظات</label>
+        <input class="input" id="e-notes" type="text" placeholder="أي ملاحظة...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit')">إلغاء</button>
+      <button class="btn btn-green" onclick="saveEdit()">💾 حفظ التعديلات</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: CLIENT DATA (SHEETS) ── -->
+<div class="modal-overlay" id="modal-client-data" onclick="closeModalIf(event,'modal-client-data')">
+  <div class="modal-xl">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="client-data-title">📊 بيانات العميل</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px" id="client-data-sub"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-ghost" style="font-size:12px" onclick="exportClientDataExcel()">📊 تصدير Excel</button>
+        <button class="btn btn-ghost" style="font-size:12px" onclick="printClientData()">🖨️ طباعة الكل</button>
+        <button class="modal-close" onclick="closeModal('modal-client-data')">✕</button>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="client-data-tabs">
+      <button class="client-data-tab active-green" id="cdt-lee" onclick="switchClientTab('lee')">💚 ليّا <span id="cdt-lee-count" style="background:var(--green);color:#fff;border-radius:20px;padding:1px 8px;font-size:11px;margin-right:4px">0</span></button>
+      <button class="client-data-tab" id="cdt-alaya" onclick="switchClientTab('alaya')">❤️ عليّا <span id="cdt-alaya-count" style="background:var(--red);color:#fff;border-radius:20px;padding:1px 8px;font-size:11px;margin-right:4px">0</span></button>
+    </div>
+
+    <!-- BODY -->
+    <div class="client-data-body" id="client-data-body">
+
+      <!-- LEE PAGE -->
+      <div id="cdp-lee">
+        <div class="client-data-toolbar">
+          <div style="font-size:13px;color:var(--text2)">
+            إجمالي ليّا: <strong id="cd-total-lee" style="color:var(--green)">0 ج</strong>
+          </div>
+          <input class="client-data-search" placeholder="🔍 بحث باسم الشخص..." oninput="filterClientData('lee',this.value)">
+        </div>
+        <div id="cd-list-lee">
+          <div class="loading"><div class="spinner"></div><br>جاري التحميل...</div>
+        </div>
+      </div>
+
+      <!-- ALAYA PAGE -->
+      <div id="cdp-alaya" style="display:none">
+        <div class="client-data-toolbar">
+          <div style="font-size:13px;color:var(--text2)">
+            إجمالي عليّا: <strong id="cd-total-alaya" style="color:var(--red)">0 ج</strong>
+          </div>
+          <input class="client-data-search" placeholder="🔍 بحث باسم الشخص..." oninput="filterClientData('alaya',this.value)">
+        </div>
+        <div id="cd-list-alaya">
+          <div class="loading"><div class="spinner"></div><br>جاري التحميل...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUMMARY FOOTER -->
+    <div class="summary-bar">
+      <div class="summary-item">👥 عدد الأشخاص: <span id="cd-summary-people">0</span></div>
+      <div class="summary-item">💚 إجمالي ليّا: <span id="cd-summary-lee" style="color:var(--green)">0 ج</span></div>
+      <div class="summary-item">❤️ إجمالي عليّا: <span id="cd-summary-alaya" style="color:var(--red)">0 ج</span></div>
+      <div class="summary-item">⚖️ الصافي: <span id="cd-summary-net">0 ج</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div id="toast"></div>
+
+<script>
+const API = 'http://localhost:3000';
+let token = '';
+let allClients = [];
+
+// ── Auth ─────────────────────────────────────────────────────
+async function adminLogin() {
+  const user = document.getElementById('a-user').value.trim();
+  const pass = document.getElementById('a-pass').value;
+  const err  = document.getElementById('a-err');
+  const btn  = document.querySelector('#login-screen .btn-accent');
+  err.textContent = '';
+  if (!user || !pass) { err.textContent = '❌ أدخل اليوزر والباسورد'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري الدخول...'; }
+  try {
+    const r = await fetch(`${API}/api/auth/admin-login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = '❌ ' + (d.error || 'يوزر أو باسورد غلط'); return; }
+    token = d.token;
+    sessionStorage.setItem('admin_token', token);
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('dash-date').textContent = new Date().toLocaleDateString('ar-EG', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    loadStats();
+    loadClients();
+  } catch(e) {
+    err.textContent = '❌ تعذر الاتصال بالسيرفر — تأكد إن السيرفر شغال';
+    sessionStorage.removeItem('admin_token');
+    token = '';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'دخول'; }
+  }
+}
+
+async function apiCall(method, path, body) {
+  const r = await fetch(`${API}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (r.status === 401 || r.status === 403) { logout(); throw new Error('Unauthorized'); }
+  return r;
+}
+
+function logout() {
+  sessionStorage.removeItem('admin_token');
+  token = '';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('a-pass').value = '';
+  document.getElementById('a-err').textContent = '';
+}
+
+// ── Pages ────────────────────────────────────────────────────
+function showPage(name) {
+  ['dashboard','clients','settings'].forEach(p => {
+    document.getElementById('page-'+p).style.display = p === name ? 'block' : 'none';
+    const nav = document.getElementById('nav-'+p);
+    if (nav) nav.classList.toggle('active', p === name);
+  });
+  document.getElementById('nav-add').classList.remove('active');
+}
+
+// ── Stats ─────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const r = await apiCall('GET', '/api/admin/stats');
+    const d = await r.json();
+    document.getElementById('stats-grid').innerHTML = `
+      <div class="stat-card accent">
+        <div class="stat-icon">👥</div>
+        <div class="stat-value">${d.totalClients}</div>
+        <div class="stat-label">إجمالي العملاء</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value">${d.activeClients}</div>
+        <div class="stat-label">اشتراك فعّال</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-value">${d.expiredClients}</div>
+        <div class="stat-label">اشتراك منتهي</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-icon">🎊</div>
+        <div class="stat-value">${d.totalPeople.toLocaleString('ar-EG')}</div>
+        <div class="stat-label">إجمالي الأشخاص</div>
+      </div>
+    `;
+    // Also populate expiring-soon table if clients loaded
+    renderExpiringSoon();
+  } catch(e) { console.error(e); }
+}
+
+function renderExpiringSoon() {
+  const now = Date.now();
+  const expiring = allClients.filter(c => {
+    if (!c.is_active || !c.sub_end) return false;
+    const d = Math.ceil((c.sub_end - now) / 86400000);
+    return d >= 0 && d <= 7;
+  }).sort((a,b) => a.sub_end - b.sub_end);
+
+  const section = document.getElementById('expiring-section');
+  const tbody   = document.getElementById('expiring-tbody');
+  if (!expiring.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  tbody.innerHTML = expiring.map(c => {
+    const days = Math.ceil((c.sub_end - now) / 86400000);
+    const color = days === 0 ? 'var(--red)' : days <= 3 ? '#f97316' : 'var(--accent)';
+    return `<tr>
+      <td style="font-weight:800">${c.owner_name || '—'}</td>
+      <td><code style="background:var(--bg2);padding:2px 8px;border-radius:6px">${c.username}</code></td>
+      <td><span style="color:${color};font-weight:900">${days === 0 ? 'ينتهي اليوم!' : days + ' يوم'}</span></td>
+      <td>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-green" style="padding:6px 12px;font-size:12px" onclick="quickRenew('${c.id}',30)">+30 يوم</button>
+          <button class="btn btn-ghost"  style="padding:6px 12px;font-size:12px" onclick="openEditModal('${c.id}')">تعديل</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function quickRenew(id, days) {
+  try {
+    const r = await apiCall('PATCH', `/api/admin/clients/${id}`, { add_days: days });
+    if (!r.ok) { toast('❌ فشل التجديد'); return; }
+    toast(`✅ تم تجديد ${days} يوم`);
+    loadClients(); loadStats();
+  } catch { toast('❌ خطأ في الاتصال'); }
+}
+
+// ── Clients ───────────────────────────────────────────────────
+async function loadClients() {
+  try {
+    const r = await apiCall('GET', '/api/admin/clients');
+    allClients = await r.json();
+    renderClients(allClients);
+  } catch(e) { console.error(e); }
+}
+
+function applyFilters() {
+  const q      = (document.getElementById('search-input')?.value || '').toLowerCase();
+  const status = document.getElementById('filter-status')?.value || 'all';
+  const now    = Date.now();
+
+  let list = allClients.filter(c => {
+    const matchText = !q || c.username.includes(q) || (c.owner_name||'').includes(q) || (c.notes||'').includes(q);
+    if (!matchText) return false;
+    if (status === 'all')      return true;
+    if (status === 'disabled') return !c.is_active;
+    if (status === 'expired')  return c.is_active && (!c.sub_end || c.sub_end <= now);
+    if (status === 'expiring') {
+      const d = c.sub_end ? Math.ceil((c.sub_end - now) / 86400000) : 0;
+      return c.is_active && d > 0 && d <= 7;
+    }
+    if (status === 'active') {
+      const d = c.sub_end ? Math.ceil((c.sub_end - now) / 86400000) : 0;
+      return c.is_active && d > 7;
+    }
+    return true;
+  });
+  renderClients(list);
+}
+
+function filterClients(q) { applyFilters(); }
+
+// ── Bulk renew expired ────────────────────────────────────────
+async function renewExpired(days) {
+  const now  = Date.now();
+  const expired = allClients.filter(c => c.is_active && (!c.sub_end || c.sub_end <= now));
+  if (!expired.length) { toast('مفيش اشتراكات منتهية'); return; }
+  if (!confirm(`هتجدد ${expired.length} اشتراك بـ ${days} يوم — تأكيد؟`)) return;
+  let done = 0;
+  for (const c of expired) {
+    try {
+      await apiCall('PATCH', `/api/admin/clients/${c.id}`, { add_days: days });
+      done++;
+    } catch {}
+  }
+  toast(`✅ تم تجديد ${done} اشتراك`);
+  loadClients(); loadStats();
+}
+
+// ── Export clients to Excel ───────────────────────────────────
+function exportClientsExcel() {
+  if (!allClients.length) { toast('مفيش بيانات للتصدير'); return; }
+  const rows = allClients.map(c => ({
+    الاسم:         c.owner_name || '',
+    اليوزر:        c.username,
+    الخطة:         c.plan === 'monthly' ? 'شهري' : c.plan === 'yearly' ? 'سنوي' : 'مدى الحياة',
+    'تاريخ الانتهاء': c.sub_end ? new Date(c.sub_end).toLocaleDateString('ar-EG') : '',
+    الحالة:        !c.is_active ? 'موقوف' : (c.sub_status === 'active' ? 'فعّال' : 'منتهي'),
+    'عدد الأشخاص': c.total_people || 0,
+    'آخر دخول':    c.last_login ? new Date(c.last_login).toLocaleDateString('ar-EG') : 'لم يدخل',
+    ملاحظات:       c.notes || '',
+  }));
+  // Build xlsx via simple CSV fallback (no xlsx lib in admin)
+  const headers = Object.keys(rows[0]);
+  const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${r[h]}"`).join(','))].join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `عملاء_نقطة_${new Date().toLocaleDateString('ar-EG').replace(/\//g,'-')}.csv`;
+  a.click();
+  toast('✅ تم التصدير');
+}
+
+function renderClients(list) {
+  document.getElementById('clients-count').textContent = `${list.length} عميل`;
+  if (!list.length) {
+    document.getElementById('clients-tbody').innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">👥</div><div class="empty-title">مفيش عملاء</div></div></td></tr>`;
+    return;
+  }
+  document.getElementById('clients-tbody').innerHTML = list.map(c => {
+    const now = Date.now();
+    const subDays = c.sub_end ? Math.ceil((c.sub_end - now) / 86400000) : 0;
+    const pct = c.sub_start && c.sub_end ? Math.max(0, Math.min(100, ((c.sub_end - now) / (c.sub_end - c.sub_start)) * 100)) : 0;
+    const barClass = !c.is_active ? 'expired' : subDays > 7 ? 'active' : subDays > 0 ? 'warning' : 'expired';
+    const statusBadge = !c.is_active
+      ? `<span class="badge badge-gray">🚫 موقوف</span>`
+      : c.sub_status === 'active'
+        ? `<span class="badge badge-green">✅ فعّال</span>`
+        : `<span class="badge badge-red">⏳ منتهي</span>`;
+
+    const subEnd = c.sub_end ? new Date(c.sub_end).toLocaleDateString('ar-EG') : '—';
+    const lastLogin = c.last_login ? new Date(c.last_login).toLocaleDateString('ar-EG') : 'لم يدخل بعد';
+
+    return `<tr>
+      <td>
+        <div style="font-weight:800;font-size:15px">${c.owner_name || '—'}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${c.notes || ''}</div>
+      </td>
+      <td><code style="background:var(--bg2);padding:3px 8px;border-radius:6px;font-size:13px">${c.username}</code></td>
+      <td>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:4px">${subDays > 0 ? subDays + ' يوم متبقي' : 'انتهى'} — ${subEnd}</div>
+        <div class="sub-bar"><div class="sub-fill ${barClass}" style="width:${pct}%"></div></div>
+      </td>
+      <td>${statusBadge}</td>
+      <td style="font-size:12px;color:var(--text2)">${lastLogin}</td>
+      <td>
+        <span class="badge badge-gray">🎊 ${c.total_people}</span>
+      </td>
+      <td>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="openClientData('${c.id}')">📊 البيانات</button>
+          <button class="btn btn-blue" onclick="openEditModal('${c.id}')">✏️ تعديل</button>
+          <button class="btn ${c.is_active ? 'btn-red' : 'btn-green'}" onclick="toggleActive('${c.id}',${c.is_active})">
+            ${c.is_active ? '🚫 إيقاف' : '✅ تفعيل'}
+          </button>
+          <button class="btn btn-red" onclick="deleteClient('${c.id}','${c.username}')">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Create client ─────────────────────────────────────────────
+function openCreateModal() {
+  showPage('clients');
+  document.getElementById('c-user').value  = '';
+  document.getElementById('c-pass').value  = '';
+  document.getElementById('c-owner').value = '';
+  document.getElementById('c-days').value  = '30';
+  document.getElementById('c-notes').value = '';
+  openModal('modal-create');
+}
+
+async function createClient() {
+  const username   = document.getElementById('c-user').value.trim();
+  const password   = document.getElementById('c-pass').value.trim();
+  const owner_name = document.getElementById('c-owner').value.trim();
+  const sub_days   = document.getElementById('c-days').value;
+  const plan       = document.getElementById('c-plan').value;
+  const notes      = document.getElementById('c-notes').value.trim();
+
+  if (!username || !password) { toast('❌ يوزر وباسورد مطلوبين'); return; }
+
+  try {
+    const r = await apiCall('POST', '/api/admin/clients', { username, password, owner_name, sub_days, plan, notes });
+    const d = await r.json();
+    if (!r.ok) { toast('❌ ' + d.error); return; }
+    closeModal('modal-create');
+    toast('✅ تم إنشاء العميل ' + username);
+    loadClients(); loadStats();
+  } catch { toast('❌ خطأ في الاتصال'); }
+}
+
+// ── Edit client ───────────────────────────────────────────────
+function openEditModal(id) {
+  const c = allClients.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('e-id').value    = id;
+  document.getElementById('e-owner').value = c.owner_name || '';
+  document.getElementById('e-pass').value  = '';
+  document.getElementById('e-days').value  = '';
+  document.getElementById('e-notes').value = c.notes || '';
+  if (c.sub_end) {
+    document.getElementById('e-enddate').value = new Date(c.sub_end).toISOString().slice(0,10);
+  }
+  document.getElementById('edit-title').textContent = `✏️ تعديل: ${c.username}`;
+  openModal('modal-edit');
+}
+
+async function saveEdit() {
+  const id       = document.getElementById('e-id').value;
+  const owner    = document.getElementById('e-owner').value.trim();
+  const pass     = document.getElementById('e-pass').value.trim();
+  const days     = parseInt(document.getElementById('e-days').value);
+  const enddate  = document.getElementById('e-enddate').value;
+  const notes    = document.getElementById('e-notes').value.trim();
+
+  const body = { owner_name: owner, notes };
+  if (pass) body.new_password = pass;
+  if (days > 0) body.add_days = days;
+  else if (enddate) body.set_end_date = enddate;
+
+  try {
+    const r = await apiCall('PATCH', `/api/admin/clients/${id}`, body);
+    const d = await r.json();
+    if (!r.ok) { toast('❌ ' + d.error); return; }
+    closeModal('modal-edit');
+    toast('✅ تم الحفظ');
+    loadClients();
+  } catch { toast('❌ خطأ في الاتصال'); }
+}
+
+async function toggleActive(id, current) {
+  try {
+    const r = await apiCall('PATCH', `/api/admin/clients/${id}`, { is_active: !current });
+    if (!r.ok) { toast('❌ فشل التعديل'); return; }
+    toast(current ? '🚫 تم الإيقاف' : '✅ تم التفعيل');
+    loadClients(); loadStats();
+  } catch { toast('❌ خطأ في الاتصال'); }
+}
+
+async function deleteClient(id, username) {
+  if (!confirm(`هل أنت متأكد من حذف العميل "${username}" وكل بياناته؟\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
+  try {
+    await apiCall('DELETE', `/api/admin/clients/${id}`);
+    toast('🗑 تم الحذف');
+    loadClients(); loadStats();
+  } catch { toast('❌ خطأ في الاتصال'); }
+}
+
+// ── Settings ──────────────────────────────────────────────────
+async function changeAdminPwd() {
+  const old = document.getElementById('s-old').value;
+  const np  = document.getElementById('s-new').value;
+  const np2 = document.getElementById('s-new2').value;
+  const err = document.getElementById('s-err');
+  err.textContent = '';
+  if (!old || !np) { err.textContent = '❌ أدخل الباسورد القديم والجديد'; return; }
+  if (np !== np2)  { err.textContent = '❌ الباسورد الجديد مش متطابق'; return; }
+  try {
+    const r = await apiCall('POST', '/api/admin/change-password', { old_password: old, new_password: np });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = '❌ ' + d.error; return; }
+    toast('✅ تم تغيير الباسورد');
+    document.getElementById('s-old').value = '';
+    document.getElementById('s-new').value = '';
+    document.getElementById('s-new2').value = '';
+  } catch { err.textContent = '❌ خطأ في الاتصال'; }
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function closeModalIf(e, id) { if (e.target.id === id) closeModal(id); }
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── Client Data Modal ─────────────────────────────────────────
+let currentClientData = { lee: [], alaya: [] };
+let currentClientTab = 'lee';
+let currentClientId = '';
+
+async function openClientData(clientId) {
+  const c = allClients.find(x => x.id === clientId);
+  if (!c) return;
+  currentClientId = clientId;
+  currentClientTab = 'lee';
+
+  document.getElementById('client-data-title').textContent = `📊 بيانات: ${c.owner_name || c.username}`;
+  document.getElementById('client-data-sub').textContent = `@${c.username} — ${c.total_people || 0} شخص مسجّل`;
+  document.getElementById('cd-list-lee').innerHTML = '<div class="loading"><div class="spinner"></div><br>جاري التحميل...</div>';
+  document.getElementById('cd-list-alaya').innerHTML = '<div class="loading"><div class="spinner"></div><br>جاري التحميل...</div>';
+
+  // Reset tab UI
+  document.getElementById('cdt-lee').className = 'client-data-tab active-green';
+  document.getElementById('cdt-alaya').className = 'client-data-tab';
+  document.getElementById('cdp-lee').style.display = 'block';
+  document.getElementById('cdp-alaya').style.display = 'none';
+
+  openModal('modal-client-data');
+
+  try {
+    const r = await apiCall('GET', `/api/admin/clients/${clientId}/data`);
+    if (!r.ok) { toast('❌ فشل تحميل بيانات العميل'); return; }
+    const d = await r.json();
+    currentClientData = { lee: d.lee || [], alaya: d.alaya || [] };
+    renderClientList('lee');
+    renderClientList('alaya');
+    updateClientSummary();
+  } catch {
+    toast('❌ خطأ في الاتصال');
+  }
+}
+
+function switchClientTab(tab) {
+  currentClientTab = tab;
+  document.getElementById('cdp-lee').style.display   = tab === 'lee'   ? 'block' : 'none';
+  document.getElementById('cdp-alaya').style.display = tab === 'alaya' ? 'block' : 'none';
+  document.getElementById('cdt-lee').className   = tab === 'lee'   ? 'client-data-tab active-green' : 'client-data-tab';
+  document.getElementById('cdt-alaya').className = tab === 'alaya' ? 'client-data-tab active-red'   : 'client-data-tab';
+}
+
+function filterClientData(type, q) {
+  const lower = q.toLowerCase().trim();
+  const list = lower
+    ? currentClientData[type].filter(p => p.name.toLowerCase().includes(lower) || (p.country||'').toLowerCase().includes(lower))
+    : currentClientData[type];
+  renderClientListItems(type, list);
+}
+
+function renderClientList(type) {
+  renderClientListItems(type, currentClientData[type]);
+  const total = currentClientData[type].reduce((s, p) => s + (p.entries||[]).reduce((a,e)=>a+Number(e.amount||0),0), 0);
+  const el = document.getElementById(`cd-total-${type}`);
+  if (el) el.textContent = total.toLocaleString('ar-EG') + ' ج';
+  const count = document.getElementById(`cdt-${type}-count`);
+  if (count) count.textContent = currentClientData[type].length;
+}
+
+function renderClientListItems(type, list) {
+  const container = document.getElementById(`cd-list-${type}`);
+  const isGreen = type === 'lee';
+  const color = isGreen ? 'var(--green)' : 'var(--red)';
+  const avatarBg = isGreen ? 'background:linear-gradient(135deg,#22c55e,#16a34a)' : 'background:linear-gradient(135deg,#ef4444,#b91c1c)';
+
+  if (!list.length) {
+    container.innerHTML = `<div class="empty"><div class="empty-icon">${isGreen ? '💚' : '❤️'}</div><div class="empty-title">لا توجد بيانات</div></div>`;
+    return;
+  }
+
+  container.innerHTML = list.map((p, idx) => {
+    const total = (p.entries||[]).reduce((s,e)=>s+Number(e.amount||0),0);
+    const initials = p.name.trim().slice(0,2);
+    const entriesHtml = (p.entries||[]).map(e => `
+      <div class="entry-row">
+        <div class="entry-info">
+          <div class="entry-occasion">${e.occasion || 'نقطة'}</div>
+          <div class="entry-date">${e.date || '—'}</div>
+        </div>
+        <div class="entry-amount" style="color:${color}">${Number(e.amount||0).toLocaleString('ar-EG')} ج</div>
+      </div>`).join('');
+
+    return `
+      <div class="person-row" onclick="togglePersonEntries('pe-${type}-${idx}')">
+        <div class="person-avatar-sm" style="${avatarBg}">${initials}</div>
+        <div class="person-row-info">
+          <div class="person-row-name">${p.name}</div>
+          <div class="person-row-country">${p.country ? '📍 ' + p.country : ''} — ${(p.entries||[]).length} مناسبة</div>
+        </div>
+        <div class="person-row-amount" style="color:${color}">${total.toLocaleString('ar-EG')} ج</div>
+        <div class="person-row-actions">
+          <button class="btn btn-ghost" style="font-size:11px;padding:6px 10px" onclick="event.stopPropagation();printOnePerson('${type}','${idx}')">🖨️</button>
+        </div>
+      </div>
+      <div class="person-entries-wrap" id="pe-${type}-${idx}">
+        ${entriesHtml || '<div style="text-align:center;padding:12px;color:var(--text2);font-size:13px">لا توجد مناسبات</div>'}
+      </div>`;
+  }).join('');
+}
+
+function togglePersonEntries(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('open');
+}
+
+function updateClientSummary() {
+  const leeTotal   = currentClientData.lee.reduce((s,p)=>s+(p.entries||[]).reduce((a,e)=>a+Number(e.amount||0),0),0);
+  const alayaTotal = currentClientData.alaya.reduce((s,p)=>s+(p.entries||[]).reduce((a,e)=>a+Number(e.amount||0),0),0);
+  const total      = currentClientData.lee.length + currentClientData.alaya.length;
+  const net        = leeTotal - alayaTotal;
+  document.getElementById('cd-summary-people').textContent = total;
+  document.getElementById('cd-summary-lee').textContent    = leeTotal.toLocaleString('ar-EG') + ' ج';
+  document.getElementById('cd-summary-alaya').textContent  = alayaTotal.toLocaleString('ar-EG') + ' ج';
+  const netEl = document.getElementById('cd-summary-net');
+  netEl.textContent = net.toLocaleString('ar-EG') + ' ج';
+  netEl.style.color = net >= 0 ? 'var(--green)' : 'var(--red)';
+}
+
+function exportClientDataExcel() {
+  if (!currentClientData.lee.length && !currentClientData.alaya.length) {
+    toast('❌ لا توجد بيانات'); return;
+  }
+  const c = allClients.find(x => x.id === currentClientId);
+  const name = c ? (c.owner_name || c.username) : 'العميل';
+
+  const makeRows = (arr) => arr.flatMap(p => {
+    const total = (p.entries||[]).reduce((s,e)=>s+Number(e.amount||0),0);
+    if (!p.entries || p.entries.length === 0) return [{ الاسم: p.name, البلد: p.country||'', المناسبة: '', التاريخ: '', المبلغ: '', الإجمالي: total }];
+    return p.entries.map((e,i) => ({
+      الاسم: i===0?p.name:'', البلد: i===0?(p.country||''):'',
+      المناسبة: e.occasion||'', التاريخ: e.date||'',
+      المبلغ: Number(e.amount||0),
+      الإجمالي: i===0?total:'',
+    }));
+  });
+
+  const wb = XLSX.utils.book_new();
+  if (currentClientData.lee.length)   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(makeRows(currentClientData.lee)),   'ليّا');
+  if (currentClientData.alaya.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(makeRows(currentClientData.alaya)), 'عليّا');
+
+  XLSX.writeFile(wb, `كشف_${name}_${new Date().toLocaleDateString('ar-EG').replace(/\//g,'-')}.xlsx`);
+  toast('✅ تم التصدير');
+}
+
+function printClientData() {
+  const c = allClients.find(x => x.id === currentClientId);
+  const ownerName = c ? (c.owner_name || c.username) : '';
+
+  const renderSection = (type, arr, label, color) => {
+    if (!arr.length) return '';
+    return `<div style="margin-bottom:24px">
+      <div style="font-size:16px;font-weight:900;color:${color};border-bottom:2px solid ${color};padding-bottom:6px;margin-bottom:12px">${label}</div>
+      ${arr.map(p => {
+        const total = (p.entries||[]).reduce((s,e)=>s+Number(e.amount||0),0);
+        return `<div style="margin-bottom:14px;padding:10px;border:1px solid #ddd;border-radius:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="font-size:14px;font-weight:800">${p.name} ${p.country?'('+p.country+')':''}</div>
+            <div style="font-size:14px;font-weight:900;color:${color}">${total.toLocaleString('ar-EG')} ج</div>
+          </div>
+          ${(p.entries||[]).map(e=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px dashed #eee;font-size:12px">
+            <span>${e.occasion||'نقطة'} — ${e.date||'—'}</span>
+            <span style="font-weight:700">${Number(e.amount||0).toLocaleString('ar-EG')} ج</span>
+          </div>`).join('')}
+        </div>`;
+      }).join('')}
+    </div>`;
+  };
+
+  const leeTotal   = currentClientData.lee.reduce((s,p)=>s+(p.entries||[]).reduce((a,e)=>a+Number(e.amount||0),0),0);
+  const alayaTotal = currentClientData.alaya.reduce((s,p)=>s+(p.entries||[]).reduce((a,e)=>a+Number(e.amount||0),0),0);
+  const net        = leeTotal - alayaTotal;
+
+  const printWin = window.open('','_blank','width=800,height=900');
+  printWin.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head>
+    <meta charset="UTF-8">
+    <title>كشف النقوط — ${ownerName}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+      body{font-family:'Cairo',sans-serif;padding:24px;color:#111;direction:rtl}
+      @media print{body{padding:10px}}
+    </style>
+  </head><body>
+    <div style="text-align:center;margin-bottom:20px;border-bottom:3px solid #000;padding-bottom:16px">
+      <div style="font-size:28px;font-weight:900">🎊 كشف النقوط</div>
+      <div style="font-size:18px;color:#444;margin-top:4px">${ownerName}</div>
+      <div style="font-size:12px;color:#888;margin-top:4px">طُبع بتاريخ ${new Date().toLocaleDateString('ar-EG')}</div>
+    </div>
+    <div style="display:flex;justify-content:space-around;margin-bottom:20px;background:#f5f5f5;padding:12px;border-radius:8px">
+      <div style="text-align:center"><div style="font-size:11px;color:#666">ليّا على الناس</div><div style="font-size:18px;font-weight:900;color:#1a7a4a">${leeTotal.toLocaleString('ar-EG')} ج</div></div>
+      <div style="text-align:center"><div style="font-size:11px;color:#666">عليّا للناس</div><div style="font-size:18px;font-weight:900;color:#b83232">${alayaTotal.toLocaleString('ar-EG')} ج</div></div>
+      <div style="text-align:center"><div style="font-size:11px;color:#666">الصافي</div><div style="font-size:18px;font-weight:900;color:${net>=0?'#1a7a4a':'#b83232'}">${net.toLocaleString('ar-EG')} ج</div></div>
+    </div>
+    ${renderSection('lee',   currentClientData.lee,   '💚 ليّا على الناس', '#1a7a4a')}
+    ${renderSection('alaya', currentClientData.alaya, '❤️ عليّا للناس',    '#b83232')}
+  </body></html>`);
+  printWin.document.close();
+  setTimeout(() => printWin.print(), 600);
+}
+
+function printOnePerson(type, idx) {
+  const list = currentClientData[type];
+  const p    = list[parseInt(idx)];
+  if (!p) return;
+  const c      = allClients.find(x => x.id === currentClientId);
+  const owner  = c ? (c.owner_name || c.username) : '';
+  const isGreen = type === 'lee';
+  const color   = isGreen ? '#1a7a4a' : '#b83232';
+  const label   = isGreen ? 'ليّا عليه' : 'عليّا له';
+  const total   = (p.entries||[]).reduce((s,e)=>s+Number(e.amount||0),0);
+
+  const printWin = window.open('','_blank','width=600,height=700');
+  printWin.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head>
+    <meta charset="UTF-8"><title>${p.name}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>body{font-family:'Cairo',sans-serif;padding:24px;color:#111;direction:rtl;max-width:500px;margin:0 auto}</style>
+  </head><body>
+    <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:16px">
+      <div style="font-size:11px;color:#888">${owner} — كشف النقوط</div>
+      <div style="font-size:22px;font-weight:900;margin-top:4px">${p.name}</div>
+      ${p.country ? `<div style="font-size:12px;color:#666">📍 ${p.country}</div>` : ''}
+      <div style="margin-top:8px;font-size:12px;color:${color};font-weight:700">${label}</div>
+    </div>
+    ${(p.entries||[]).map(e=>`
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #ddd">
+        <div><div style="font-weight:700;font-size:13px">${e.occasion||'نقطة'}</div><div style="font-size:11px;color:#888">${e.date||'—'}</div></div>
+        <div style="font-weight:900;font-size:15px;color:${color}">${Number(e.amount||0).toLocaleString('ar-EG')} ج</div>
+      </div>`).join('')}
+    <div style="text-align:left;margin-top:16px;padding:12px;background:#f5f5f5;border-radius:8px">
+      <div style="font-size:11px;color:#666">الإجمالي</div>
+      <div style="font-size:22px;font-weight:900;color:${color}">${total.toLocaleString('ar-EG')} جنيه</div>
+    </div>
+    <div style="text-align:center;margin-top:16px;font-size:10px;color:#aaa">طُبع بتاريخ ${new Date().toLocaleDateString('ar-EG')}</div>
+  </body></html>`);
+  printWin.document.close();
+  setTimeout(() => printWin.print(), 500);
+}
+
+// Check if already logged in
+(async()=>{ const saved = sessionStorage.getItem('admin_token'); if(saved){ token=saved; await adminLogin(); }})();
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    if (document.getElementById('login-screen').style.display !== 'none') adminLogin();
+  }
+  if (e.key === 'Escape') {
+    ['modal-create','modal-edit','modal-client-data'].forEach(closeModal);
+  }
+});
+</script>
+</body>
+</html>
